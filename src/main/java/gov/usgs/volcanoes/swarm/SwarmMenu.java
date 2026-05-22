@@ -11,6 +11,9 @@ import gov.usgs.volcanoes.swarm.internalframe.InternalFrameListener;
 import gov.usgs.volcanoes.swarm.internalframe.SwarmInternalFrames;
 import gov.usgs.volcanoes.swarm.map.MapFrame;
 import gov.usgs.volcanoes.swarm.wave.WaveClipboardFrame;
+import gov.usgs.volcanoes.swarm.statistics.SeismicityStatisticsDialog;
+import gov.usgs.volcanoes.swarm.data.SdsScanner;
+import gov.usgs.volcanoes.swarm.data.SdsFileResolver;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
@@ -26,6 +29,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JCheckBoxMenuItem;
@@ -39,12 +45,16 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.ListSelectionModel;
+import javax.swing.JScrollPane;
 import javax.swing.KeyStroke;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.xml.parsers.ParserConfigurationException;
 import org.xml.sax.SAXException;
+
 
 /**
  * Swarm Menu.
@@ -96,13 +106,207 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
     createFileMenu();
     createLayoutMenu();
     createWindowMenu();
+	createToolsMenu();
     createHelpMenu();
     SwarmInternalFrames.addInternalFrameListener(this);
   }
 
-  private void createFileMenu() {
-    fileMenu = new JMenu("File");
-    fileMenu.setMnemonic('F');
+	private void createFileMenu() {
+	  fileMenu = new JMenu("File");
+	  fileMenu.setMnemonic('F');
+
+	  openFile = new JMenuItem("Open File...");
+	  openFile.setMnemonic('O');
+	  openFile.addActionListener(new ActionListener() {
+		public void actionPerformed(ActionEvent e) {
+		  SwarmConfig config = SwarmConfig.getInstance();
+		  FileDataSource fds = FileDataSource.getInstance();
+		  JFileChooser chooser = new JFileChooser();
+		  chooser.resetChoosableFileFilters();
+
+		  for (FileType ft : FileType.getKnownTypes()) {
+			ExtensionFileFilter f =
+				new ExtensionFileFilter(ft.extension, ft.description);
+			chooser.addChoosableFileFilter(f);
+		  }
+
+		  chooser.setFileFilter(chooser.getAcceptAllFileFilter());
+		  File lastPath = new File(SwarmConfig.getInstance().lastPath);
+		  chooser.setCurrentDirectory(lastPath);
+		  chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		  chooser.setMultiSelectionEnabled(true);
+		  chooser.setDialogTitle("Open Wave as Data Source");
+
+		  int result = chooser.showOpenDialog(Swarm.getApplicationFrame());
+
+		  if (result == JFileChooser.APPROVE_OPTION) {
+			File[] fs = chooser.getSelectedFiles();
+			config.lastPath = fs[0].getParent();
+			fds.openFiles(fs);
+
+			if (config.getSource(fds.getName()) == null) {
+			  config.addSource(fds);
+			}
+		  }
+		}
+	  });
+
+	  openFile.setAccelerator(
+		  KeyStroke.getKeyStroke(KeyEvent.VK_O, KeyEvent.CTRL_DOWN_MASK));
+	  fileMenu.add(openFile);
+
+	  // ===============================
+	  // Open SDS Archive
+	  // ===============================
+	  JMenuItem openSds = new JMenuItem("Open SDS Archive...");
+	  openSds.setMnemonic('S');
+
+	  openSds.addActionListener(new ActionListener() {
+		public void actionPerformed(ActionEvent e) {
+		  JFileChooser chooser = new JFileChooser();
+		  chooser.setCurrentDirectory(new File(SwarmConfig.getInstance().lastPath));
+		  chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		  chooser.setMultiSelectionEnabled(false);
+		  chooser.setDialogTitle("Select SDS Root Directory");
+
+		  int result = chooser.showOpenDialog(Swarm.getApplicationFrame());
+
+		  if (result == JFileChooser.APPROVE_OPTION) {
+			File sdsRoot = chooser.getSelectedFile();
+			SwarmConfig.getInstance().lastPath = sdsRoot.getAbsolutePath();
+
+			List<SdsScanner.SdsChannel> channels =
+				SdsScanner.scan(sdsRoot);
+
+			if (channels.isEmpty()) {
+			  JOptionPane.showMessageDialog(
+				  Swarm.getApplicationFrame(),
+				  "No SDS channels found."
+			  );
+			  return;
+			}
+
+			JList<SdsScanner.SdsChannel> channelList =
+				new JList<SdsScanner.SdsChannel>(
+					channels.toArray(new SdsScanner.SdsChannel[channels.size()])
+				);
+
+			channelList.setSelectionMode(
+				ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+			);
+
+			channelList.setVisibleRowCount(20);
+
+			JScrollPane channelScrollPane =
+				new JScrollPane(channelList);
+
+			int channelResult = JOptionPane.showConfirmDialog(
+				Swarm.getApplicationFrame(),
+				channelScrollPane,
+				"Select SDS Channels",
+				JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.QUESTION_MESSAGE
+			);
+
+			if (channelResult != JOptionPane.OK_OPTION) {
+			  return;
+			}
+
+			List<SdsScanner.SdsChannel> selectedChannels =
+				channelList.getSelectedValuesList();
+
+			if (selectedChannels.isEmpty()) {
+			  JOptionPane.showMessageDialog(
+				  Swarm.getApplicationFrame(),
+				  "No SDS channel selected."
+			  );
+			  return;
+			}
+
+			String startText = JOptionPane.showInputDialog(
+				Swarm.getApplicationFrame(),
+				"Start UTC, format yyyy-MM-dd HH:mm:ss:",
+				"2026-05-13 00:00:00"
+			);
+
+			String endText = JOptionPane.showInputDialog(
+				Swarm.getApplicationFrame(),
+				"End UTC, format yyyy-MM-dd HH:mm:ss:",
+				"2026-05-13 01:00:00"
+			);
+
+			if (startText == null || endText == null) {
+			  return;
+			}
+
+			try {
+			  DateTimeFormatter formatter =
+				  DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+			  LocalDateTime startUtc =
+				  LocalDateTime.parse(startText, formatter);
+
+			  LocalDateTime endUtc =
+				  LocalDateTime.parse(endText, formatter);
+
+			  SdsFileResolver resolver =
+				  new SdsFileResolver(sdsRoot);
+
+			  List<File> files = new ArrayList<File>();
+
+			  for (SdsScanner.SdsChannel selectedChannel : selectedChannels) {
+
+			  List<File> channelFiles = resolver.resolve(
+					selectedChannel.network,
+					selectedChannel.station,
+					selectedChannel.location,
+					selectedChannel.channel,
+					startUtc,
+					endUtc
+			  );
+
+				files.addAll(channelFiles);
+			  }
+
+			  if (files.isEmpty()) {
+				JOptionPane.showMessageDialog(
+					Swarm.getApplicationFrame(),
+					"No SDS files found for selected time."
+				);
+				return;
+			  }
+
+			  FileDataSource fds = FileDataSource.getInstance();
+
+			  File[] fileArray = files.toArray(new File[files.size()]);
+			  fds.openFiles(fileArray);
+
+			  SwarmConfig config = SwarmConfig.getInstance();
+
+			  if (config.getSource(fds.getName()) == null) {
+				config.addSource(fds);
+			  }
+
+			JOptionPane.showMessageDialog(
+			    Swarm.getApplicationFrame(),
+			    "Selected SDS channels: " + selectedChannels.size()
+			        + "\nOpened SDS files: " + files.size()
+			);
+
+			} catch (Exception ex) {
+			  JOptionPane.showMessageDialog(
+				  Swarm.getApplicationFrame(),
+				  ex.getMessage(),
+				  "SDS Open Error",
+				  JOptionPane.ERROR_MESSAGE
+			  );
+			  ex.printStackTrace();
+			}
+		  }
+		}
+	  });
+
+	  fileMenu.add(openSds);
 
     openFile = new JMenuItem("Open File...");
     openFile.setMnemonic('O');
@@ -134,8 +338,6 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
         }
       }
     });
-    openFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, KeyEvent.CTRL_DOWN_MASK));
-    fileMenu.add(openFile);
 
     closeFiles = new JMenuItem("Close Files");
     closeFiles.addActionListener(new ActionListener() {
@@ -457,6 +659,27 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 
     add(windowMenu);
   }
+
+	private void createToolsMenu() {
+
+		JMenu toolsMenu = new JMenu("Tools");
+
+		JMenuItem seismicityStatsItem =
+			new JMenuItem("Seismicity Statistics");
+
+		seismicityStatsItem.addActionListener(e -> {
+
+			SeismicityStatisticsDialog dialog =
+				new SeismicityStatisticsDialog(null);
+
+			dialog.setVisible(true);
+		});
+
+		toolsMenu.add(seismicityStatsItem);
+
+		add(toolsMenu);
+	}
+
 
   private void createHelpMenu() {
     helpMenu = new JMenu("Help");

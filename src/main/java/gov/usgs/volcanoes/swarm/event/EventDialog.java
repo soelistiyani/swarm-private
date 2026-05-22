@@ -49,8 +49,10 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
+import javax.swing.JLabel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -79,6 +81,8 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
+import gov.usgs.volcanoes.swarm.event.gad.GadManager;
+
 
 /**
  * Event information dialog.
@@ -117,6 +121,17 @@ public class EventDialog extends SwarmFrame {
 
   private String user;
 
+  private JRadioButton solverHypo71;
+  private JRadioButton solverGad;
+  private GadManager gadMgr;
+  private String gadOutput;
+
+  private JTextField gadFolderField;
+  private JTextField gadVelocityFile;
+  private JTextField gadStationFile;
+  private JTextField gadSummitFile;
+  private JTextField gadResultFile;
+  
   /**
    * Default constructor.
    */
@@ -157,236 +172,589 @@ public class EventDialog extends SwarmFrame {
   /**
    * Create UI.
    */
-  protected void createUi() {
+protected void createUi() {
 
-    mainPanel = new JPanel(new BorderLayout());
-    this.add(mainPanel);
-    // super.createUi();
+  mainPanel = new JPanel(new BorderLayout());
+  this.add(mainPanel);
 
-    FormLayout layout = new FormLayout("left:75dlu, 5dlu, 140dlu, 3dlu, 10dlu");
-    DefaultFormBuilder builder = new DefaultFormBuilder(layout).border(Borders.DIALOG);
+  FormLayout layout =
+      new FormLayout("left:75dlu, 5dlu, 140dlu, 3dlu, 10dlu");
 
-    builder.appendSeparator("Event Details");
+  DefaultFormBuilder builder =
+      new DefaultFormBuilder(layout).border(Borders.DIALOG);
 
-    eventType = new JComboBox<EventType>(EventType.values());
-    eventType.setSelectedItem(EventType.EARTHQUAKE);
-    builder.append("Event Type", eventType);
-    builder.nextLine();
+  // =========================================================
+  // Solver Selection
+  // =========================================================
 
-    eventTypeCertainty = new JComboBox<EventTypeCertainty>(EventTypeCertainty.values());
-    eventTypeCertainty.setSelectedItem(EventTypeCertainty.SUSPECTED);
-    builder.append("Event Type Certainty", eventTypeCertainty);
-    builder.nextLine();
+  builder.appendSeparator("Hypocenter Solver");
 
-    description = new JTextField("");
-    builder.append("Description", description);
-    builder.nextLine();
+  solverHypo71 = new JRadioButton("Hypo71");
+  solverHypo71.setSelected(true);
 
-    comment = new JTextArea(4, 1);
-    JScrollPane scrollPane = new JScrollPane(comment);
-    builder.append("Comment", scrollPane);
-    builder.nextLine();
+  solverGad = new JRadioButton("GAD");
 
-    builder.appendSeparator("Hypo71 Input");
-    hypo71Mgr = new Hypo71Manager();
+  ButtonGroup solverGroup = new ButtonGroup();
+  solverGroup.add(solverHypo71);
+  solverGroup.add(solverGad);
 
+  builder.append(solverHypo71);
+  builder.nextLine();
 
+  builder.append(solverGad);
+  builder.nextLine();
 
-    usePicks = new JRadioButton("Use Clipboard Picks");
-    usePicks.setSelected(true);
-    usePicks.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        hypo71InputFile.setEnabled(false);
+  gadMgr = new GadManager();
+
+  // =========================================================
+  // Event Details
+  // =========================================================
+
+  builder.appendSeparator("Event Details");
+
+  eventType = new JComboBox<EventType>(EventType.values());
+  eventType.setSelectedItem(EventType.EARTHQUAKE);
+
+  builder.append("Event Type", eventType);
+  builder.nextLine();
+
+  eventTypeCertainty =
+      new JComboBox<EventTypeCertainty>(EventTypeCertainty.values());
+
+  eventTypeCertainty.setSelectedItem(
+      EventTypeCertainty.SUSPECTED);
+
+  builder.append("Event Type Certainty", eventTypeCertainty);
+  builder.nextLine();
+
+  description = new JTextField("");
+  builder.append("Description", description);
+  builder.nextLine();
+
+  comment = new JTextArea(4, 1);
+
+  JScrollPane scrollPane = new JScrollPane(comment);
+
+  builder.append("Comment", scrollPane);
+  builder.nextLine();
+
+  // =========================================================
+  // Hypo71 Input
+  // =========================================================
+
+  builder.appendSeparator("Hypo71 Input");
+
+  hypo71Mgr = new Hypo71Manager();
+
+  usePicks = new JRadioButton("Use Clipboard Picks");
+  usePicks.setSelected(true);
+
+  usePicks.addActionListener(new ActionListener() {
+    public void actionPerformed(ActionEvent e) {
+      hypo71InputFile.setEnabled(false);
+    }
+  });
+
+  builder.append(usePicks);
+  builder.nextLine();
+
+  crustalModelFile =
+      new JTextField(hypo71Mgr.crustalModelFileName);
+
+  builder.append("Crustal Model File", crustalModelFile);
+
+  JButton openCrustalModelButton = new JButton("...");
+
+  openCrustalModelButton.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+
+      String filename = openFileChooser(
+          JFileChooser.FILES_ONLY,
+          null,
+          null,
+          false);
+
+      if (filename != null) {
+        crustalModelFile.setText(filename);
+        hypo71Mgr.crustalModelFileName = filename;
       }
-    });
-    builder.append(usePicks);
-    builder.nextLine();
 
-    crustalModelFile = new JTextField(hypo71Mgr.crustalModelFileName);
-    builder.append("Crustal Model File", crustalModelFile);
-    JButton openCrustalModelButton = new JButton("...");
-    openCrustalModelButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        String filename = openFileChooser(JFileChooser.FILES_ONLY, null, null, false);
-        if (filename != null) {
-          crustalModelFile.setText(filename);
-          hypo71Mgr.crustalModelFileName = filename;
-        }
-        requestFocus();
+      requestFocus();
+    }
+  });
+
+  builder.append(openCrustalModelButton);
+  builder.nextLine();
+
+  useInputFile = new JRadioButton("Use Input File");
+
+  useInputFile.addActionListener(new ActionListener() {
+    public void actionPerformed(ActionEvent e) {
+      hypo71InputFile.setEnabled(true);
+    }
+  });
+
+  builder.append(useInputFile);
+  builder.nextLine();
+
+  ButtonGroup hypoGroup = new ButtonGroup();
+  hypoGroup.add(usePicks);
+  hypoGroup.add(useInputFile);
+
+  hypo71InputFile = new JTextField();
+
+  builder.append("Hypo71 Input File", hypo71InputFile);
+
+  JButton openInputFileButton = new JButton("...");
+
+  openInputFileButton.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+
+      FileFilter filter =
+          new FileNameExtensionFilter(
+              "Hypo71 Input (.INP)",
+              "INP");
+
+      String filename = openFileChooser(
+          JFileChooser.FILES_ONLY,
+          null,
+          filter,
+          false);
+
+      if (filename != null) {
+        hypo71InputFile.setText(filename);
+        hypo71Output = "";
       }
-    });
-    builder.append(openCrustalModelButton);
-    builder.nextLine();
+    }
+  });
 
-    useInputFile = new JRadioButton("Use Input File");
-    useInputFile.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        hypo71InputFile.setEnabled(true);
-      }
-    });
-    builder.append(useInputFile);
-    builder.nextLine();
+  builder.append(openInputFileButton);
+  builder.nextLine();
 
-    ButtonGroup hypoGroup = new ButtonGroup();
-    hypoGroup.add(usePicks);
-    hypoGroup.add(useInputFile);
+  // =========================================================
+  // Buttons Settings
+  // =========================================================
 
-    hypo71InputFile = new JTextField();
-    builder.append("Hypo71 Input File", hypo71InputFile);
-    JButton openInputFileButton = new JButton("...");
-    openInputFileButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        FileFilter filter = new FileNameExtensionFilter("Hypo71 Input (.INP)", "INP");
-        String filename = openFileChooser(JFileChooser.FILES_ONLY, null, filter, false);
-        if (filename != null) {
-          hypo71InputFile.setText(filename);
-          hypo71Output = "";
-        }
-        // requestFocus();
-      }
-    });
-    builder.append(openInputFileButton);
-    builder.nextLine();
+  JButton settingsButton = new JButton("Settings");
 
+  settingsButton.setToolTipText(
+      "For use with clipboard picks only.");
 
-    JButton settingsButton = new JButton("Settings");
-    settingsButton.setToolTipText("For use with clipboard picks only.");
-    settingsButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        Hypo71SettingsDialog.getInstance().setVisible(true);
-      }
-    });
+  settingsButton.addActionListener(
+      new ActionListener() {
 
-    JButton locateButton = new JButton("Run");
-    locateButton.setToolTipText("Locate hypocenter using Hypo71");
-    locateButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        try {
+  public void actionPerformed(ActionEvent e) {
+      Hypo71SettingsDialog
+          .getInstance()
+          .setVisible(true);
+    }
+  });
+  
+  ButtonBarBuilder settingsBar = new ButtonBarBuilder();
+  settingsBar.addGlue();
+  settingsBar.addButton(settingsButton);
+
+  JPanel settingsPanel = settingsBar.getPanel();
+  settingsPanel.setBorder(
+    BorderFactory.createEmptyBorder(5, 5, 5, 10));
+
+  builder.append(settingsPanel, 5);
+  builder.nextLine();
+
+  // =========================================================
+  // GAD Input
+  // =========================================================
+
+	gadFolderField = new JTextField("GAD");
+	builder.append("GAD Folder", gadFolderField);
+
+	JButton openGadFolderButton = new JButton("...");
+	openGadFolderButton.addActionListener(new ActionListener() {
+	  public void actionPerformed(ActionEvent e) {
+		String folder = openFileChooser(JFileChooser.DIRECTORIES_ONLY, null, null, false);
+		if (folder != null) {
+		  gadFolderField.setText(folder);
+		  gadVelocityFile.setText(folder + File.separator + "velocity.dat");
+		  gadStationFile.setText(folder + File.separator + "station.dat");
+		  gadSummitFile.setText(folder + File.separator + "summit.dat");
+		  gadResultFile.setText(folder + File.separator + "Result.dat");
+		}
+	  }
+	});
+	builder.append(openGadFolderButton);
+	builder.nextLine();
+
+	gadVelocityFile = new JTextField("GAD" + File.separator + "velocity.dat");
+	builder.append("Velocity File", gadVelocityFile);
+	builder.nextLine();
+
+	gadStationFile = new JTextField("GAD" + File.separator + "station.dat");
+	builder.append("Station File", gadStationFile);
+	builder.nextLine();
+
+	gadSummitFile = new JTextField("GAD" + File.separator + "summit.dat");
+	builder.append("Summit File", gadSummitFile);
+	builder.nextLine();
+
+	gadResultFile = new JTextField("GAD" + File.separator + "Result.dat");
+	builder.append("Result File", gadResultFile);
+	builder.nextLine();
+
+  // =========================================================
+  // Buttons Run
+  // =========================================================
+  
+  JButton locateButton = new JButton("Run");
+
+  locateButton.setToolTipText(
+      "Locate hypocenter");
+  locateButton.addActionListener(
+      new ActionListener() {
+    public void actionPerformed(ActionEvent e) {
+      try {
+        if (solverGad.isSelected()) {
+          runGad();
+        } else {
           runHypo71();
-        } catch (IOException e1) {
-          // TODO Auto-generated catch block
-          e1.printStackTrace();
-        } catch (ParseException e1) {
-          // TODO Auto-generated catch block
-          e1.printStackTrace();
+          showLocationOutput(
+              "Hypo71 Output",
+              hypo71Output);
         }
+      } catch (IOException e1) {
+        e1.printStackTrace();
+      } catch (ParseException e1) {
+        e1.printStackTrace();
       }
-    });
+    }
+  });
 
-    ButtonBarBuilder bbBuilder = new ButtonBarBuilder();
-    bbBuilder.addGlue();
-    bbBuilder.addButton(settingsButton, locateButton);
-    JPanel buttonPanel = bbBuilder.getPanel();
-    buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 5, 5, 10));
-    builder.append(buttonPanel, 5);
+  ButtonBarBuilder bbBuilder =
+      new ButtonBarBuilder();
+  bbBuilder.addGlue();
+  bbBuilder.addButton(locateButton);
+  JPanel buttonPanel = bbBuilder.getPanel();
+  buttonPanel.setBorder(
+      BorderFactory.createEmptyBorder(
+          10, 5, 5, 10));
+  builder.append(buttonPanel, 5);
 
-    builder.appendSeparator("Hypo71 Output");
+  // =========================================================
+  // Output
+  // =========================================================
 
-    location = new JTextField();
-    // location.setBorder(null);
-    location.setEditable(false);
-    builder.append("Location", location);
-    builder.nextLine();
-    magnitude = new JTextField();
-    // magnitude.setBorder(null);
-    magnitude.setEditable(false);
-    builder.append("Magnitude", magnitude);
-    builder.nextLine();
-    rms = new JTextField();
-    // rms.setBorder(null);
-    rms.setEditable(false);
-    builder.append("RMS", rms);
-    builder.nextLine();
-    gap = new JTextField();
-    // gap.setBorder(null);
-    gap.setEditable(false);
-    builder.append("GAP", gap);
-    builder.nextLine();
-    erh = new JTextField();
-    // erh.setBorder(null);
-    erh.setEditable(false);
-    builder.append("ERH", erh);
-    builder.nextLine();
-    erz = new JTextField();
-    // erz.setBorder(null);
-    erz.setEditable(false);
-    builder.append("ERZ", erz);
-    builder.nextLine();
+  builder.appendSeparator("Location Output");
 
-    JButton viewHypo71Button = new JButton("View");
-    viewHypo71Button.setToolTipText("View Hypo71 output.");
-    viewHypo71Button.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
+  location = new JTextField();
+  location.setEditable(false);
+
+  builder.append("Location", location);
+  builder.nextLine();
+
+  magnitude = new JTextField();
+  magnitude.setEditable(false);
+
+  builder.append("Magnitude", magnitude);
+  builder.nextLine();
+
+  rms = new JTextField();
+  rms.setEditable(false);
+
+  builder.append("RMS", rms);
+  builder.nextLine();
+
+  gap = new JTextField();
+  gap.setEditable(false);
+
+  builder.append("GAP", gap);
+  builder.nextLine();
+
+  erh = new JTextField();
+  erh.setEditable(false);
+
+  builder.append("ERH", erh);
+  builder.nextLine();
+
+  erz = new JTextField();
+  erz.setEditable(false);
+
+  builder.append("ERZ", erz);
+  builder.nextLine();
+
+  JButton viewHypo71Button = new JButton("View");
+
+  viewHypo71Button.setToolTipText(
+      "View output.");
+
+  viewHypo71Button.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+
+      if (solverGad.isSelected()) {
+
+        showLocationOutput(
+            "GAD Output",
+            gadOutput);
+
+      } else {
+
         showHypo71Output();
       }
-    });
+    }
+  });
 
-    JButton plotHypo71Button = new JButton("Plot");
-    plotHypo71Button.setToolTipText("Plot located hypocenters on map.");
-    plotHypo71Button.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        plotHypo71Output();
-      }
-    });
+	JButton plotHypo71Button = new JButton("Plot");
 
-    JButton saveHypo71Button = new JButton("Save");
-    saveHypo71Button.setToolTipText("Save Hypo71 output to file.");
-    saveHypo71Button.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        saveHypo71Output();
-      }
-    });
+	plotHypo71Button.setToolTipText(
+		"Plot located hypocenters on map.");
 
-    JButton clearHypo71Button = new JButton("Clear");
-    clearHypo71Button.setToolTipText("Clear all hypo71 inputs.");
-    clearHypo71Button.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        clearHypo71();
-      }
-    });
+	plotHypo71Button.addActionListener(
+		new ActionListener() {
 
-    bbBuilder = new ButtonBarBuilder();
-    bbBuilder.addGlue();
-    bbBuilder.addButton(viewHypo71Button, plotHypo71Button, saveHypo71Button, clearHypo71Button);
-    buttonPanel = bbBuilder.getPanel();
-    buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 5, 10, 10));
-    builder.append(buttonPanel, 5);
+	  public void actionPerformed(ActionEvent e) {
 
-    builder.appendSeparator("QuakeML");
+		if (solverGad.isSelected()) {
 
-    final FileFilter xmlFilter = new FileNameExtensionFilter("QuakeML (.xml)", "XML");
-    JButton importQuakemlButton = new JButton("Import");
-    importQuakemlButton.setToolTipText("Import event from QuakeML file.");
-    importQuakemlButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        String filename = openFileChooser(JFileChooser.FILES_ONLY, null, xmlFilter, false);
-        importQuakeMl(filename);
-        checkForPicks();
-        requestFocus();
-      }
-    });
+		  JOptionPane.showMessageDialog(
+			  Swarm.getApplicationFrame(),
+			  "Plot untuk GAD belum aktif karena hasil GAD belum dimasukkan sebagai Origin QuakeML/Event.",
+			  "GAD Plot",
+			  JOptionPane.INFORMATION_MESSAGE
+		  );
 
-    JButton exportQuakemlButton = new JButton("Export");
-    exportQuakemlButton.setToolTipText("Export event to QuakeML file.");
-    exportQuakemlButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        String filename = SwarmConfig.getInstance().lastPath + "/Swarm" + Version.POM_VERSION
-            + "_QuakeML_" + user + "_" + System.currentTimeMillis() + ".xml";
-        filename = openFileChooser(JFileChooser.FILES_ONLY, filename, xmlFilter, true);
-        saveQuakeMl(filename);
-        requestFocus();
-      }
-    });
+		} else {
 
-    bbBuilder = new ButtonBarBuilder();
-    bbBuilder.addGlue();
-    bbBuilder.addButton(importQuakemlButton, exportQuakemlButton);
-    buttonPanel = bbBuilder.getPanel();
-    buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 5, 10, 10));
-    builder.append(buttonPanel, 5);
+		  plotHypo71Output();
+		}
+	  }
+	});
 
-    mainPanel.add(builder.getPanel(), BorderLayout.CENTER);
-  }
+
+  JButton saveHypo71Button = new JButton("Save");
+
+  saveHypo71Button.setToolTipText(
+      "Save output to file.");
+
+  saveHypo71Button.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+      saveHypo71Output();
+    }
+  });
+
+  JButton clearHypo71Button = new JButton("Clear");
+
+  clearHypo71Button.setToolTipText(
+      "Clear all inputs.");
+
+  clearHypo71Button.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+      clearHypo71();
+    }
+  });
+
+  bbBuilder = new ButtonBarBuilder();
+
+  bbBuilder.addGlue();
+
+  bbBuilder.addButton(
+      viewHypo71Button,
+      plotHypo71Button,
+      saveHypo71Button,
+      clearHypo71Button);
+
+  buttonPanel = bbBuilder.getPanel();
+
+  buttonPanel.setBorder(
+      BorderFactory.createEmptyBorder(
+          10, 5, 10, 10));
+
+  builder.append(buttonPanel, 5);
+
+  // =========================================================
+  // QuakeML
+  // =========================================================
+
+  builder.appendSeparator("QuakeML");
+
+  final FileFilter xmlFilter =
+      new FileNameExtensionFilter(
+          "QuakeML (.xml)",
+          "XML");
+
+  JButton importQuakemlButton =
+      new JButton("Import");
+
+  importQuakemlButton.setToolTipText(
+      "Import event from QuakeML file.");
+
+  importQuakemlButton.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+
+      String filename =
+          openFileChooser(
+              JFileChooser.FILES_ONLY,
+              null,
+              xmlFilter,
+              false);
+
+      importQuakeMl(filename);
+
+      checkForPicks();
+
+      requestFocus();
+    }
+  });
+
+  JButton exportQuakemlButton =
+      new JButton("Export");
+
+  exportQuakemlButton.setToolTipText(
+      "Export event to QuakeML file.");
+
+  exportQuakemlButton.addActionListener(
+      new ActionListener() {
+
+    public void actionPerformed(ActionEvent e) {
+
+      String filename =
+          SwarmConfig.getInstance().lastPath
+          + "/Swarm"
+          + Version.POM_VERSION
+          + "_QuakeML_"
+          + user
+          + "_"
+          + System.currentTimeMillis()
+          + ".xml";
+
+      filename =
+          openFileChooser(
+              JFileChooser.FILES_ONLY,
+              filename,
+              xmlFilter,
+              true);
+
+      saveQuakeMl(filename);
+
+      requestFocus();
+    }
+  });
+
+  bbBuilder = new ButtonBarBuilder();
+
+  bbBuilder.addGlue();
+
+  bbBuilder.addButton(
+      importQuakemlButton,
+      exportQuakemlButton);
+
+  buttonPanel = bbBuilder.getPanel();
+
+  buttonPanel.setBorder(
+      BorderFactory.createEmptyBorder(
+          10, 5, 10, 10));
+
+  builder.append(buttonPanel, 5);
+
+  mainPanel.add(
+      builder.getPanel(),
+      BorderLayout.CENTER);
+}
+
+
+	/**
+	 * Run GAD hypocenter location.
+	 */
+	private void runGad() {
+	  try {
+		gadMgr.setFiles(
+			gadFolderField.getText(),
+			gadVelocityFile.getText(),
+			gadStationFile.getText(),
+			gadSummitFile.getText(),
+			gadResultFile.getText()
+		);
+		boolean success = gadMgr.calculateFromClipboard();
+		GadManager.GadResult gr = gadMgr.getResult();
+		gadOutput = gadMgr.getResultText();
+		if (gr != null) {
+		  location.setText(String.format(
+			  Locale.US,
+			  "%.6f, %.6f, %.3f km",
+			  gr.latitude,
+			  gr.longitude,
+			  gr.depthKm
+		  ));
+
+		  rms.setText(String.format(
+			  Locale.US,
+			  "%.3f",
+			  gr.rms
+		  ));
+
+		  gap.setText("GAD");
+
+		  erh.setText("");
+		  erz.setText("");
+		}
+
+		if (success) {
+
+		  hypo71Output = gadOutput;
+
+		  showLocationOutput(
+			  "GAD Output - Result.dat",
+			  gadOutput);
+
+		} else {
+
+		  JOptionPane.showMessageDialog(
+			  Swarm.getApplicationFrame(),
+			  "GAD gagal dijalankan.",
+			  "GAD Error",
+			  JOptionPane.ERROR_MESSAGE
+		  );
+		}
+
+	  } catch (Exception ex) {
+
+		JOptionPane.showMessageDialog(
+			Swarm.getApplicationFrame(),
+			ex.getMessage(),
+			"GAD Error",
+			JOptionPane.ERROR_MESSAGE
+		);
+
+		ex.printStackTrace();
+	  }
+	}
+
+	// Ubah showHypo71Output() menjadi fungsi umum // 	  
+	private void showLocationOutput(String title, String output) {
+	  JTextArea textArea = new JTextArea(output);
+	  textArea.setEditable(false);
+	  textArea.setCaretPosition(0);
+
+	  JScrollPane scrollPane = new JScrollPane(textArea);
+	  scrollPane.setPreferredSize(new Dimension(700, 500));
+
+	  JOptionPane.showMessageDialog(
+		  Swarm.getApplicationFrame(),
+		  scrollPane,
+		  title,
+		  JOptionPane.INFORMATION_MESSAGE
+	  );
+	}
+
 
   /**
    * Clear event information and hypo71 run data.
@@ -407,7 +775,7 @@ public class EventDialog extends SwarmFrame {
    */
   private void plotHypo71Output() {
     Event event = createEvent();
-    if (event.getPreferredOrigin() == null) {
+   if (event.getPreferredOrigin() == null) {
       String message = "No origin associated with event.";
       JOptionPane.showMessageDialog(Swarm.getApplicationFrame(), message);
     } else {
@@ -416,7 +784,7 @@ public class EventDialog extends SwarmFrame {
       MapFrame.getInstance().getHypocenterLayer().add(eventSet);
       MapFrame.getInstance().setVisible(true);
       MapFrame.getInstance().toFront();
-    }
+   }
 
   }
 

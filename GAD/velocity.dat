@@ -1,0 +1,4 @@
+nzLayer       :   2                 (15x,i4)
+zLayer        :   0.0               (15x,5f8.3)
+VpL(nzLayer+1):   2.8     3.9       (15x,6f8.3)
+VsL(nzLayer+1):   1.556   2.167     (15x,6f8.3)

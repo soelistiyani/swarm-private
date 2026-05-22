@@ -424,17 +424,16 @@ public class HelicorderViewerFrame extends SwarmFrame implements Kioskable {
     tagButton.setEnabled(true);
     toolBar.add(tagButton);
 
-    tagButton.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        if (tagButton.isSelected()) {
-          helicorderViewPanel.getTagMenu().browseForEventFileName();
-          helicorderViewPanel.makeInsetPanelTagEnabled();
-        } else {
-          helicorderViewPanel.tagData.clear();
-        }
-        repaint();
-      }
-    });
+	tagButton.addActionListener(new ActionListener() {
+	  public void actionPerformed(ActionEvent e) {
+		if (tagButton.isSelected()) {
+		  helicorderViewPanel.makeInsetPanelTagEnabled();
+		} else {
+		  helicorderViewPanel.tagData.clear();
+		}
+		repaint();
+	  }
+	});
 
     toolBar.addSeparator();
 

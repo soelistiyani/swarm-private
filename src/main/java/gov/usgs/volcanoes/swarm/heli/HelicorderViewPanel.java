@@ -11,6 +11,7 @@ import gov.usgs.volcanoes.core.legacy.plot.render.FrameRenderer;
 import gov.usgs.volcanoes.core.legacy.plot.render.HelicorderRenderer;
 import gov.usgs.volcanoes.core.legacy.plot.render.TextRenderer;
 import gov.usgs.volcanoes.core.time.J2kSec;
+import gov.usgs.volcanoes.core.time.Time;
 import gov.usgs.volcanoes.swarm.Icons;
 import gov.usgs.volcanoes.swarm.Metadata;
 import gov.usgs.volcanoes.swarm.SwarmConfig;
@@ -24,6 +25,7 @@ import gov.usgs.volcanoes.swarm.wave.StatusTextArea;
 import gov.usgs.volcanoes.swarm.wave.WaveClipboardFrame;
 import gov.usgs.volcanoes.swarm.wave.WaveViewPanel;
 import gov.usgs.volcanoes.swarm.wave.WaveViewPanelAdapter;
+import gov.usgs.volcanoes.core.data.Wave;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
@@ -51,6 +53,9 @@ import java.util.TimeZone;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
 import javax.swing.event.EventListenerList;
+import java.util.HashMap;
+import java.util.Map;
+
 
 /**
  * A <code>JComponent</code> for displaying and interacting with a helicorder.
@@ -114,7 +119,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 
   private TagMenu tagMenu;
   protected ArrayList<TagData> tagData = new ArrayList<TagData>();
-
+  
   /**
    * Constructor.
    * 
@@ -832,6 +837,131 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
     minimal = b;
   }
 
+
+public void calculateAmplitudeForEvent(final String eventId) {
+
+    final TagData pPick = findPhasePick(eventId, "P");
+    final TagData codaPick = findPhasePick(eventId, "CODA");
+
+    if (pPick == null || codaPick == null) {
+        return;
+    }
+
+    if (codaPick.startTime <= pPick.startTime) {
+        return;
+    }
+
+    final SwingWorker worker = new SwingWorker() {
+
+        private double durationSec = Double.NaN;
+        private double maxAbsAmplitude = Double.NaN;
+        private String maxAbsTime = "";
+        private double peakToPeakAmplitude = Double.NaN;
+
+        public Object construct() {
+
+            Wave wave = parent.getWave(
+                    pPick.startTime,
+                    codaPick.startTime);
+
+            if (wave == null) {
+                return null;
+            }
+
+            calculateAmplitudeStats(
+                    wave,
+                    pPick.startTime,
+                    codaPick.startTime);
+
+            return null;
+        }
+
+        public void finished() {
+
+            codaPick.durationSec = durationSec;
+            codaPick.maxAbsAmplitude = maxAbsAmplitude;
+            codaPick.maxAbsTime = maxAbsTime;
+            codaPick.peakToPeakAmplitude = peakToPeakAmplitude;
+
+            getTagMenu().write();
+
+            repaint();
+        }
+
+		private void calculateAmplitudeStats(
+				Wave wave,
+				double t1,
+				double t2) {
+
+			int[] data = wave.buffer;
+
+			if (data == null || data.length == 0) {
+				return;
+			}
+
+            double samplingRate = wave.getSamplingRate();
+            double waveStart = wave.getStartTime();
+
+            if (samplingRate <= 0) {
+                return;
+            }
+
+            int i1 = (int) Math.max(
+                    0,
+                    Math.round((t1 - waveStart) * samplingRate));
+
+            int i2 = (int) Math.min(
+                    data.length - 1,
+                    Math.round((t2 - waveStart) * samplingRate));
+
+            if (i2 <= i1) {
+                return;
+            }
+
+            double maxAbs = 0;
+            double min = Double.POSITIVE_INFINITY;
+            double max = Double.NEGATIVE_INFINITY;
+
+            int maxAbsIndex = i1;
+
+            for (int i = i1; i <= i2; i++) {
+
+                double v = data[i];
+
+                if (Double.isNaN(v)) {
+                    continue;
+                }
+
+                if (Math.abs(v) > maxAbs) {
+                    maxAbs = Math.abs(v);
+                    maxAbsIndex = i;
+                }
+
+                if (v < min) {
+                    min = v;
+                }
+
+                if (v > max) {
+                    max = v;
+                }
+            }
+
+				durationSec = t2 - t1;
+				maxAbsAmplitude = maxAbs;
+				double tMax =
+						waveStart + maxAbsIndex / samplingRate;
+				maxAbsTime =
+						J2kSec.format(
+								"yyyy-MM-dd HH:mm:ss.SSS",
+								tMax);
+				peakToPeakAmplitude = max - min;
+        }
+    };
+
+    worker.start();
+}
+
+
   private static final Color DARK_GREEN = new Color(0, 168, 0);
 
   private void drawMark(Graphics2D g2, double t, Color color) {
@@ -867,6 +997,142 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
       g2.draw(gp);
     }
   }
+
+private void drawPickedDuration(Graphics2D g2, double t1, double t2, Color color) {
+    if (Double.isNaN(t1) || Double.isNaN(t2) || t2 <= t1) {
+        return;
+    }
+
+    double chunk = heliRenderer.getTimeChunk();
+    double viewEnd = heliRenderer.getViewEndTime();
+
+    int firstRow = heliRenderer.getRow(t1);
+    int lastRow  = heliRenderer.getRow(t2);
+
+    if (firstRow < 0 && lastRow < 0) {
+        return;
+    }
+
+    int rowMin = Math.max(0, Math.min(firstRow, lastRow));
+    int rowMax = Math.min(heliRenderer.getNumRows() - 1, Math.max(firstRow, lastRow));
+
+    for (int row = rowMin; row <= rowMax; row++) {
+        double rowEnd = viewEnd - row * chunk;
+        double rowStart = rowEnd - chunk;
+
+        double segStart = Math.max(t1, rowStart);
+        double segEnd   = Math.min(t2, rowEnd);
+
+        if (segEnd <= segStart) {
+            continue;
+        }
+
+        int x1 = (int) Math.round(heliRenderer.helicorderGetXPixel(segStart));
+        int x2 = (int) Math.round(heliRenderer.helicorderGetXPixel(segEnd));
+
+        int x = Math.min(x1, x2);
+        int w = Math.abs(x2 - x1);
+
+        if (w <= 0) {
+            continue;
+        }
+
+        int y = (int) Math.round(row * translation[ROW_HEIGHT] + translation[GRAPH_Y]);
+        int h = (int) Math.round(translation[ROW_HEIGHT]);
+
+        int graphX = (int) heliRenderer.getGraphX();
+        int graphY = (int) heliRenderer.getGraphY();
+        int graphW = (int) heliRenderer.getGraphWidth();
+        int graphH = (int) heliRenderer.getGraphHeight();
+
+        int clipX1 = Math.max(x, graphX);
+        int clipX2 = Math.min(x + w, graphX + graphW);
+
+        int clipY1 = Math.max(y, graphY);
+        int clipY2 = Math.min(y + h, graphY + graphH);
+
+        if (clipX2 <= clipX1 || clipY2 <= clipY1) {
+            continue;
+        }
+
+        g2.setColor(color);
+        g2.fillRect(clipX1, clipY1, clipX2 - clipX1, clipY2 - clipY1);
+    }
+}
+
+private void drawPhaseLabel(Graphics2D g2, TagData tag) {
+    if (Double.isNaN(tag.startTime)) {
+        return;
+    }
+
+    int x = (int) heliRenderer.helicorderGetXPixel(tag.startTime);
+    int row = heliRenderer.getRow(tag.startTime);
+    int y = (int) Math.ceil(row * translation[ROW_HEIGHT] + translation[GRAPH_Y]);
+
+    if (!(x < heliRenderer.getGraphX()
+            || y < heliRenderer.getGraphY()
+            || x > heliRenderer.getGraphX() + heliRenderer.getGraphWidth() - 1
+            || y > heliRenderer.getGraphY() + heliRenderer.getGraphHeight() - 1)) {
+
+        g2.setColor(Color.black);
+        g2.drawLine(x, y, x, y + (int) translation[ROW_HEIGHT]);
+        g2.drawString(tag.getPhaseLabel(), x + 3, y + 11);
+    }
+}
+
+private void drawPickedDurations(Graphics2D g2) {
+    Map<String, TagData> pPicks = new HashMap<String, TagData>();
+    Map<String, TagData> codaPicks = new HashMap<String, TagData>();
+
+    for (Object obj : tagData) {
+        TagData tag = (TagData) obj;
+
+        if (!tag.channel.equals(settings.channel)) {
+            continue;
+        }
+
+        if (tag.isP()) {
+            TagData old = pPicks.get(tag.eventId);
+            if (old == null || tag.startTime < old.startTime) {
+                pPicks.put(tag.eventId, tag);
+            }
+        } else if (tag.isCoda()) {
+            TagData old = codaPicks.get(tag.eventId);
+            if (old == null || tag.startTime > old.startTime) {
+                codaPicks.put(tag.eventId, tag);
+            }
+        }
+    }
+
+    for (String eventId : pPicks.keySet()) {
+        TagData p = pPicks.get(eventId);
+        TagData coda = codaPicks.get(eventId);
+
+        if (p != null && coda != null && coda.startTime > p.startTime) {
+            Color durationColor = TagMenu.getDurationColor(p.classification);
+            drawPickedDuration(g2, p.startTime, coda.startTime, durationColor);
+        }
+    }
+}
+
+	private TagData findPhasePick(String eventId, String phase) {
+		for (TagData tag : tagData) {
+			if (!tag.channel.equals(settings.channel)) {
+				continue;
+			}
+
+			if (!eventId.equals(tag.eventId)) {
+				continue;
+			}
+
+			if (phase.equalsIgnoreCase(tag.phase)) {
+				return tag;
+			}
+		}
+
+		return null;
+	}
+
 
   /**
    * Draw event circle.
@@ -909,13 +1175,21 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 
     drawMark(g2, startMark, DARK_GREEN);
     drawMark(g2, endMark, DARK_GREEN);
-    if (parent.isTagEnabled()) {
-      for (TagData tag : tagData) {
-        if (tag.channel.equals(settings.channel)) {
-          drawEvent(g2, tag.startTime, tag.color);
-        }
-      }
-    }
+	if (parent.isTagEnabled()) {
+		drawPickedDurations(g2);
+
+		for (Object obj : tagData) {
+			TagData tag = (TagData) obj;
+
+			if (tag.channel.equals(settings.channel)) {
+				if (tag.isPhasePick()) {
+					drawPhaseLabel(g2, tag);
+				} else {
+					drawEvent(g2, tag.startTime, tag.color);
+				}
+			}
+		}
+	}
 
     if (insetWavePanel != null) {
       // find out where time highlight will be, possibly reposition the

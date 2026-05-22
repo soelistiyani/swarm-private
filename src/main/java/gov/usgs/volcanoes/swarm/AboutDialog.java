@@ -40,7 +40,7 @@ public class AboutDialog extends JDialog implements Runnable {
   private static final int TITLE_HEIGHT = 80;
 
   private static final int ATTRIBUTION_LOC_Y = TITLE_LOC_Y + TITLE_HEIGHT + PANEL_PADDING;
-  private static final int ATTRIBUTION_HEIGHT = 140;
+  private static final int ATTRIBUTION_HEIGHT = 170;
 
   private static final int MEMORY_LOC_Y = ATTRIBUTION_LOC_Y + ATTRIBUTION_HEIGHT + PANEL_PADDING;
   private static final int MEMORY_HEIGHT = 100;
@@ -159,11 +159,13 @@ public class AboutDialog extends JDialog implements Runnable {
     pane.setLocation(5, ATTRIBUTION_LOC_Y);
     pane.setBorder(LineBorder.createBlackLineBorder());
     pane.setContentType("text/html");
-    pane.setText("<HTML>"
-        + "<DIV style=\"text-align: center;\"><B>Developed by:</B><br>U.S. Geological Survey"
-        + "<p><B>With contributions from:</B>"
-        + "<BR>Instrumental Software Technologies, Inc. (ISTI)"
-        + "<BR>The Incorporated Research Institutions for Seismology (IRIS)" + "</DIV></HTML>");
+	pane.setText("<HTML>"
+		+ "<DIV style=\"text-align: center;\"><B>Developed by:</B><br>U.S. Geological Survey"
+		+ "<p><B>With contributions from:</B>"
+		+ "<BR>Instrumental Software Technologies, Inc. (ISTI)"
+		+ "<BR>The Incorporated Research Institutions for Seismology (IRIS)"
+		+ "<BR>Center for Volcanology and Geological Hazard Mitigation (CVGHM)"
+		+ "</DIV></HTML>");
     return pane;
   }
 
