@@ -1,0 +1,7 @@
+/bin/
+/target/
+/Swarm.config
+/Swarm.config.bak
+/PickSettings.config
+/DataSources.config
+.checkstyle
