@@ -202,16 +202,21 @@ public class GadManager {
 			  (sPick.getTime() - eventBaseTime) / 1000.0;
 		}
 
-		String polarity = "+";
+		String pPolarity = getPickPolarity(pPick);
+
+		String pQuality = getPickQuality(pPick);
+		String sQuality = getPickQuality(sPick);
 
 		sb.append(String.format(
 			Locale.US,
-			"%s,%s,%.3f,%s,I,%.3f,E%n",
+			"%s,%s,%.3f,%s,%s,%.3f,%s%n",
 			eventId,
 			station,
 			pSec,
-			polarity,
-			sSec
+			pPolarity,
+			pQuality,
+			sSec,
+			sQuality
 		));
 
 		nPick++;
@@ -259,6 +264,63 @@ public class GadManager {
     }
     return channelName;
   }
+
+	private String getPickPolarity(Pick pick) {
+
+	  if (pick == null) {
+		return "E";
+	  }
+
+	  String polarity = String.valueOf(pick.getPolarity());
+
+	  if (polarity == null) {
+		return "+";
+	  }
+
+	  polarity = polarity.toLowerCase();
+
+	  if (polarity.contains("negative")
+		  || polarity.contains("down")
+		  || polarity.equals("-")) {
+		return "-";
+	  }
+
+	  if (polarity.contains("positive")
+		  || polarity.contains("up")
+		  || polarity.equals("+")) {
+		return "+";
+	  }
+
+	  return "+";
+	}
+
+	private String getPickQuality(Pick pick) {
+
+	  if (pick == null) {
+		return "E";
+	  }
+
+	  String onset = String.valueOf(pick.getOnset());
+
+	  if (onset == null) {
+		return "E";
+	  }
+
+	  onset = onset.trim().toLowerCase();
+
+	  if (onset.contains("impulsive")
+		  || onset.equals("i")) {
+		return "I";
+	  }
+
+	  if (onset.contains("emergent")
+		  || onset.equals("e")) {
+		return "E";
+	  }
+
+	  return "E";
+	}
+
 
   private SummitReference readSummitDat()
       throws IOException {
