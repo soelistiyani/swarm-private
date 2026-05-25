@@ -576,13 +576,13 @@ public class TagMenu extends JPopupMenu {
 
         phaseMenu.addSeparator();
 
-        JMenuItem codaItem = new JMenuItem("CODA");
-        codaItem.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                createPhasePick("CODA", "CODA", "UNKNOWN", 1);
-            }
-        });
-        phaseMenu.add(codaItem);
+		JMenuItem codaItem = new JMenuItem("CODA");
+		codaItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				createPhasePick("CODA", "CODA", "", 1);
+			}
+		});
+		phaseMenu.add(codaItem);
     }
 
     private void createPOrSMenu(JMenu parentMenu, final String phase) {

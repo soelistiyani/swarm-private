@@ -19,6 +19,7 @@ import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.GridLayout;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -225,57 +226,169 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 			  return;
 			}
 
-			JPanel datePanel = new JPanel();
+			JPanel timePanel = new JPanel();
 
-			String[] years = {"2024", "2025", "2026"};
+			File[] yearDirs = sdsRoot.listFiles(File::isDirectory);
+
+			List<String> yearList = new ArrayList<String>();
+
+			if (yearDirs != null) {
+
+			  for (File dir : yearDirs) {
+
+				String name = dir.getName();
+
+				if (name.matches("\\d{4}")) {
+				  yearList.add(name);
+				}
+			  }
+			}
+
+			Collections.sort(yearList);
+
+			String[] years =
+				yearList.toArray(new String[yearList.size()]);
+
 			String[] months = {
 				"01", "02", "03", "04", "05", "06",
 				"07", "08", "09", "10", "11", "12"
 			};
+
 			String[] days = {
 				"01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
 				"11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
 				"21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"
 			};
 
-			JComboBox<String> yearBox = new JComboBox<String>(years);
-			JComboBox<String> monthBox = new JComboBox<String>(months);
-			JComboBox<String> dayBox = new JComboBox<String>(days);
+			String[] hours = {
+				"00", "01", "02", "03", "04", "05", "06",
+				"07", "08", "09", "10", "11", "12",
+				"13", "14", "15", "16", "17", "18",
+				"19", "20", "21", "22", "23"
+			};
 
-			yearBox.setSelectedItem("2026");
-			monthBox.setSelectedItem("05");
-			dayBox.setSelectedItem("13");
+			JComboBox<String> startYearBox =
+				new JComboBox<String>(years);
 
-			datePanel.add(new JLabel("Date UTC:"));
-			datePanel.add(yearBox);
-			datePanel.add(monthBox);
-			datePanel.add(dayBox);
+			JComboBox<String> startMonthBox =
+				new JComboBox<String>(months);
 
-			int dateResult = JOptionPane.showConfirmDialog(
+			JComboBox<String> startDayBox =
+				new JComboBox<String>(days);
+
+			JComboBox<String> startHourBox =
+				new JComboBox<String>(hours);
+
+			JComboBox<String> endYearBox =
+				new JComboBox<String>(years);
+
+			JComboBox<String> endMonthBox =
+				new JComboBox<String>(months);
+
+			JComboBox<String> endDayBox =
+				new JComboBox<String>(days);
+
+			JComboBox<String> endHourBox =
+				new JComboBox<String>(hours);
+
+			LocalDateTime now = LocalDateTime.now();
+
+			String currentYear =
+				String.format("%04d", now.getYear());
+
+			String currentMonth =
+				String.format("%02d", now.getMonthValue());
+
+			String currentDay =
+				String.format("%02d", now.getDayOfMonth());
+
+			startYearBox.setSelectedItem(currentYear);
+			startMonthBox.setSelectedItem(currentMonth);
+			startDayBox.setSelectedItem(currentDay);
+			startHourBox.setSelectedItem("00");
+
+			endYearBox.setSelectedItem(currentYear);
+			endMonthBox.setSelectedItem(currentMonth);
+			endDayBox.setSelectedItem(currentDay);
+			endHourBox.setSelectedItem(
+				String.format("%02d", now.getHour())
+			);
+
+			timePanel.setLayout(new GridLayout(2, 1));
+
+			JPanel startPanel = new JPanel();
+
+			startPanel.add(new JLabel("Start UTC:"));
+			startPanel.add(startYearBox);
+			startPanel.add(startMonthBox);
+			startPanel.add(startDayBox);
+			startPanel.add(startHourBox);
+			startPanel.add(new JLabel(":00:00"));
+
+			JPanel endPanel = new JPanel();
+
+			endPanel.add(new JLabel("End UTC:"));
+			endPanel.add(endYearBox);
+			endPanel.add(endMonthBox);
+			endPanel.add(endDayBox);
+			endPanel.add(endHourBox);
+			endPanel.add(new JLabel(":59:59"));
+
+			timePanel.add(startPanel);
+			timePanel.add(endPanel);
+
+			int timeResult = JOptionPane.showConfirmDialog(
 				Swarm.getApplicationFrame(),
-				datePanel,
-				"Select SDS Date",
+				timePanel,
+				"Select SDS Time Range",
 				JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.QUESTION_MESSAGE
 			);
 
-			if (dateResult != JOptionPane.OK_OPTION) {
+			if (timeResult != JOptionPane.OK_OPTION) {
 			  return;
 			}
 
-			String dateText =
-				yearBox.getSelectedItem().toString()
-					+ "-"
-					+ monthBox.getSelectedItem().toString()
-					+ "-"
-					+ dayBox.getSelectedItem().toString();
+		String startDateText =
+			startYearBox.getSelectedItem().toString()
+				+ "-"
+				+ startMonthBox.getSelectedItem().toString()
+				+ "-"
+				+ startDayBox.getSelectedItem().toString()
+				+ "T"
+				+ startHourBox.getSelectedItem().toString()
+				+ ":00:00";
 
-			LocalDate selectedDate = LocalDate.parse(dateText);
+		String endDateText =
+			endYearBox.getSelectedItem().toString()
+				+ "-"
+				+ endMonthBox.getSelectedItem().toString()
+				+ "-"
+				+ endDayBox.getSelectedItem().toString()
+				+ "T"
+				+ endHourBox.getSelectedItem().toString()
+				+ ":59:59";
 
-			LocalDateTime startUtc = selectedDate.atStartOfDay();
-			LocalDateTime endUtc = selectedDate.atTime(23, 59, 59);
+		LocalDateTime startUtc =
+			LocalDateTime.parse(startDateText);
 
-			try {
+		LocalDateTime endUtc =
+			LocalDateTime.parse(endDateText);
+
+		if (endUtc.isBefore(startUtc)) {
+
+		  JOptionPane.showMessageDialog(
+			  Swarm.getApplicationFrame(),
+			  "End time must be after start time.",
+			  "Invalid SDS Time Range",
+			  JOptionPane.ERROR_MESSAGE
+		  );
+
+		  return;
+		}
+
+
+		try {
 			  SdsFileResolver resolver =
 				  new SdsFileResolver(sdsRoot);
 
@@ -283,14 +396,14 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 
 			  for (SdsScanner.SdsChannel selectedChannel : selectedChannels) {
 
-			  List<File> channelFiles = resolver.resolve(
+				List<File> channelFiles = resolver.resolve(
 					selectedChannel.network,
 					selectedChannel.station,
 					selectedChannel.location,
 					selectedChannel.channel,
 					startUtc,
 					endUtc
-			  );
+				);
 
 				files.addAll(channelFiles);
 			  }
@@ -314,11 +427,11 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 				config.addSource(fds);
 			  }
 
-			JOptionPane.showMessageDialog(
-			    Swarm.getApplicationFrame(),
-			    "Selected SDS channels: " + selectedChannels.size()
-			        + "\nOpened SDS files: " + files.size()
-			);
+			  JOptionPane.showMessageDialog(
+				  Swarm.getApplicationFrame(),
+				  "Selected SDS channels: " + selectedChannels.size()
+					  + "\nOpened SDS files: " + files.size()
+			  );
 
 			} catch (Exception ex) {
 			  JOptionPane.showMessageDialog(
@@ -335,36 +448,6 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 
 	  fileMenu.add(openSds);
 
-    openFile = new JMenuItem("Open File...");
-    openFile.setMnemonic('O');
-    openFile.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        SwarmConfig config = SwarmConfig.getInstance();
-        FileDataSource fds = FileDataSource.getInstance();
-        JFileChooser chooser = new JFileChooser();
-        chooser.resetChoosableFileFilters();
-        for (FileType ft : FileType.getKnownTypes()) {
-          ExtensionFileFilter f = new ExtensionFileFilter(ft.extension, ft.description);
-          chooser.addChoosableFileFilter(f);
-        }
-
-        chooser.setFileFilter(chooser.getAcceptAllFileFilter());
-        File lastPath = new File(SwarmConfig.getInstance().lastPath);
-        chooser.setCurrentDirectory(lastPath);
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-        chooser.setMultiSelectionEnabled(true);
-        chooser.setDialogTitle("Open Wave as Data Source");
-        int result = chooser.showOpenDialog(Swarm.getApplicationFrame());
-        if (result == JFileChooser.APPROVE_OPTION) {
-          File[] fs = chooser.getSelectedFiles();
-          config.lastPath = fs[0].getParent();
-          fds.openFiles(fs);
-          if (config.getSource(fds.getName()) == null) {
-            config.addSource(fds);
-          }
-        }
-      }
-    });
 
     closeFiles = new JMenuItem("Close Files");
     closeFiles.addActionListener(new ActionListener() {
