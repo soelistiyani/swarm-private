@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.List;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDate;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JCheckBoxMenuItem;
@@ -44,6 +44,8 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JLabel;
+import javax.swing.JComboBox;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
@@ -223,32 +225,57 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 			  return;
 			}
 
-			String startText = JOptionPane.showInputDialog(
+			JPanel datePanel = new JPanel();
+
+			String[] years = {"2024", "2025", "2026"};
+			String[] months = {
+				"01", "02", "03", "04", "05", "06",
+				"07", "08", "09", "10", "11", "12"
+			};
+			String[] days = {
+				"01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
+				"11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+				"21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"
+			};
+
+			JComboBox<String> yearBox = new JComboBox<String>(years);
+			JComboBox<String> monthBox = new JComboBox<String>(months);
+			JComboBox<String> dayBox = new JComboBox<String>(days);
+
+			yearBox.setSelectedItem("2026");
+			monthBox.setSelectedItem("05");
+			dayBox.setSelectedItem("13");
+
+			datePanel.add(new JLabel("Date UTC:"));
+			datePanel.add(yearBox);
+			datePanel.add(monthBox);
+			datePanel.add(dayBox);
+
+			int dateResult = JOptionPane.showConfirmDialog(
 				Swarm.getApplicationFrame(),
-				"Start UTC, format yyyy-MM-dd HH:mm:ss:",
-				"2026-05-13 00:00:00"
+				datePanel,
+				"Select SDS Date",
+				JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.QUESTION_MESSAGE
 			);
 
-			String endText = JOptionPane.showInputDialog(
-				Swarm.getApplicationFrame(),
-				"End UTC, format yyyy-MM-dd HH:mm:ss:",
-				"2026-05-13 01:00:00"
-			);
-
-			if (startText == null || endText == null) {
+			if (dateResult != JOptionPane.OK_OPTION) {
 			  return;
 			}
 
+			String dateText =
+				yearBox.getSelectedItem().toString()
+					+ "-"
+					+ monthBox.getSelectedItem().toString()
+					+ "-"
+					+ dayBox.getSelectedItem().toString();
+
+			LocalDate selectedDate = LocalDate.parse(dateText);
+
+			LocalDateTime startUtc = selectedDate.atStartOfDay();
+			LocalDateTime endUtc = selectedDate.atTime(23, 59, 59);
+
 			try {
-			  DateTimeFormatter formatter =
-				  DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-			  LocalDateTime startUtc =
-				  LocalDateTime.parse(startText, formatter);
-
-			  LocalDateTime endUtc =
-				  LocalDateTime.parse(endText, formatter);
-
 			  SdsFileResolver resolver =
 				  new SdsFileResolver(sdsRoot);
 
