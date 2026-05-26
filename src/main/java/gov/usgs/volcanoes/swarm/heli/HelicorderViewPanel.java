@@ -36,6 +36,9 @@ import java.awt.Image;
 import java.awt.Paint;
 import java.awt.Point;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -53,6 +56,11 @@ import java.util.TimeZone;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
 import javax.swing.event.EventListenerList;
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
+import javax.swing.InputMap;
+import javax.swing.KeyStroke;
+import javax.swing.JComponent;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -62,7 +70,7 @@ import java.util.Map;
  * 
  * @author Dan Cervelli
  */
-public class HelicorderViewPanel extends JComponent implements SwarmOptionsListener {
+public class HelicorderViewPanel extends JComponent implements SwarmOptionsListener, KeyListener {
   // private static final Logger LOGGER = LoggerFactory.getLogger(HelicorderViewPanel.class);
 
   private static final Color BACKGROUND_COLOR = new Color(0xf7, 0xf7, 0xf7);
@@ -120,6 +128,8 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
   private TagMenu tagMenu;
   protected ArrayList<TagData> tagData = new ArrayList<TagData>();
   
+  private double lastMouseJ2K = Double.NaN;
+  
   /**
    * Constructor.
    * 
@@ -140,9 +150,12 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
     plot.addRenderer(heliRenderer);
 
     this.setRequestFocusEnabled(true);
+	this.setFocusable(true);
+	this.addKeyListener(this);
     this.addMouseListener(new HelicorderMouseListener());
     this.addMouseMotionListener(new HelicorderMouseMotionListener());
     this.addMouseWheelListener(new HelicorderMouseWheelListener());
+	installPickShortcuts();
 
     cursorChanged();
 
@@ -431,6 +444,8 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
         double j2k = getMouseJ2K(x, y);
         String status =
             StatusTextArea.getTimeString(j2k, swarmConfig.getTimeZone(settings.channel));
+
+		lastMouseJ2K = j2k;
 
         // look for event to show
         if (parent.isTagEnabled()) {
@@ -1327,8 +1342,91 @@ private void drawPickedDurations(Graphics2D g2) {
     return insetWavePanel;
   }
 
-  public HelicorderViewerFrame getFrame() {
-    return parent;
-  }
+	private void installPickShortcuts() {
 
-}
+		InputMap inputMap = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+		ActionMap actionMap = getActionMap();
+
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, KeyEvent.CTRL_DOWN_MASK), "quickPickP");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK), "quickPickS");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK), "quickPickCoda");
+
+		actionMap.put("quickPickP", new AbstractAction() {
+			public void actionPerformed(ActionEvent e) {
+				doQuickPick("P");
+			}
+		});
+
+		actionMap.put("quickPickS", new AbstractAction() {
+			public void actionPerformed(ActionEvent e) {
+				doQuickPick("S");
+			}
+		});
+
+		actionMap.put("quickPickCoda", new AbstractAction() {
+			public void actionPerformed(ActionEvent e) {
+				doQuickPick("CODA");
+			}
+		});
+	}
+
+	private void doQuickPick(String phase) {
+
+		if (!parent.isTagEnabled()) {
+			return;
+		}
+
+		if (Double.isNaN(lastMouseJ2K)) {
+			return;
+		}
+
+		getTagMenu().quickPick(phase, lastMouseJ2K);
+		repaint();
+	}
+
+
+	public HelicorderViewerFrame getFrame() {
+		return parent;
+	}
+
+	/*
+	 * KEY SHORTCUT
+	 */
+	public void keyPressed(KeyEvent e) {
+
+		if (!parent.isTagEnabled()) {
+			return;
+		}
+
+		if (Double.isNaN(lastMouseJ2K)) {
+			return;
+		}
+
+		if (!e.isControlDown()) {
+			return;
+		}
+
+		int key = e.getKeyCode();
+
+		if (key == KeyEvent.VK_P) {
+			getTagMenu().quickPick("P", lastMouseJ2K);
+			e.consume();
+			repaint();
+
+		} else if (key == KeyEvent.VK_S) {
+			getTagMenu().quickPick("S", lastMouseJ2K);
+			e.consume();
+			repaint();
+
+		} else if (key == KeyEvent.VK_C) {
+			getTagMenu().quickPick("CODA", lastMouseJ2K);
+			e.consume();
+			repaint();
+		}
+	}
+
+	public void keyReleased(KeyEvent e) {}
+
+	public void keyTyped(KeyEvent e) {}
+
+	}

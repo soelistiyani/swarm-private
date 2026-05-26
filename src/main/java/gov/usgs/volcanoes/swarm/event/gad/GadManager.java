@@ -191,21 +191,27 @@ public class GadManager {
 		String station =
 			extractStationCode(
 				wvp.getChannel());
+				station = normalizeStationForGad(station);
+
 
 		double pSec =
 			(pPick.getTime() - eventBaseTime) / 1000.0;
 
+		String pPolarity = getPickPolarity(pPick);
+		String pQuality = getPickQuality(pPick);
+
 		double sSec = 99.990;
+		String sQuality = "E";
 
 		if (sPick != null) {
-		  sSec =
-			  (sPick.getTime() - eventBaseTime) / 1000.0;
+		  sSec = (sPick.getTime() - eventBaseTime) / 1000.0;
+		  sQuality = getPickQuality(sPick);
+
+		  if (sSec < pSec) {
+			sSec = 99.990;
+			sQuality = "E";
+		  }
 		}
-
-		String pPolarity = getPickPolarity(pPick);
-
-		String pQuality = getPickQuality(pPick);
-		String sQuality = getPickQuality(sPick);
 
 		sb.append(String.format(
 			Locale.US,
@@ -221,6 +227,10 @@ public class GadManager {
 
 		nPick++;
 	  }
+	  
+		if (nPick < 3) {
+		  throw new IOException("Minimal 3 pick P diperlukan untuk GAD.");
+		}
 
 	  sb.append(System.lineSeparator());
 
@@ -247,6 +257,20 @@ public class GadManager {
 
 		hist.write("\n");
 	  }
+	}
+
+	private String normalizeStationForGad(String station) {
+	  if (station == null) {
+		return "    ";
+	  }
+
+	  station = station.trim();
+
+	  if (station.length() >= 4) {
+		return station.substring(0, 4);
+	  }
+
+	  return String.format("%-4s", station);
 	}
 
 

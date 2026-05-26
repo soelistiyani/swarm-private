@@ -482,6 +482,20 @@ public class TagMenu extends JPopupMenu {
         }
     }
 
+	public void quickPick(String phase, double pickTime) {
+
+		setJ2k(pickTime);
+
+		if ("P".equalsIgnoreCase(phase)) {
+			createPhasePick("P", "IMPULSIVE", "UNKNOWN", 1);
+
+		} else if ("S".equalsIgnoreCase(phase)) {
+			createPhasePick("S", "EMERGENT", "UNKNOWN", 2);
+
+		} else if ("CODA".equalsIgnoreCase(phase)) {
+			createPhasePick("CODA", "", "", 1);
+		}
+	}
 
     private void createOperatorMenu() {
         JMenuItem operatorItem = new JMenuItem("Set Operator Name");
