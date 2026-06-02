@@ -35,6 +35,7 @@ public class TagData implements Comparator<TagData> {
 	public double maxAbsAmplitude = Double.NaN;
 	public String maxAbsTime = "";
 	public double peakToPeakAmplitude = Double.NaN;
+	public double dominantFrequencyHz = Double.NaN;
 
 	private static final String TIME_FORMAT_MS = "yyyy-MM-dd HH:mm:ss.SSS";
 
@@ -218,7 +219,8 @@ public class TagData implements Comparator<TagData> {
 				+ "," + doubleString(durationSec)
 				+ "," + doubleString(maxAbsAmplitude)
 				+ "," + safeCsv(maxAbsTime)
-				+ "," + doubleString(peakToPeakAmplitude);
+				+ "," + doubleString(peakToPeakAmplitude)
+				+ "," + doubleString(dominantFrequencyHz);
 	}
 
 	public String getTimeString() {

@@ -866,68 +866,70 @@ public class TagMenu extends JPopupMenu {
 
 		for (String eventId : eventIds) {
 
-			TagData classTag = null;
-			TagData pTag = null;
-			TagData sTag = null;
-			TagData codaTag = null;
+		TagData classTag = null;
+		TagData pTag = null;
+		TagData sTag = null;
+		TagData endTag = null;
 
-			for (TagData tag : hvp.getTagData()) {
+		for (TagData tag : hvp.getTagData()) {
 
-				if (!eventId.equals(tag.eventId)) {
-					continue;
-				}
-
-				if (!tag.isPhasePick()) {
-					classTag = tag;
-				}
-
-				if (tag.isP()) {
-					if (pTag == null || tag.startTime < pTag.startTime) {
-						pTag = tag;
-					}
-				}
-
-				if (tag.isS()) {
-					if (sTag == null || tag.startTime < sTag.startTime) {
-						sTag = tag;
-					}
-				}
-
-				if (tag.isCoda()) {
-					if (codaTag == null || tag.startTime > codaTag.startTime) {
-						codaTag = tag;
-					}
-				}
-			}
-
-			TagData ref =
-					pTag != null ? pTag :
-					classTag != null ? classTag :
-					sTag != null ? sTag :
-					codaTag;
-
-			if (ref == null) {
+			if (!eventId.equals(tag.eventId)) {
 				continue;
 			}
 
-			String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
-			String station = getStationCode(ref);
+			if (!tag.isPhasePick()) {
+				classTag = tag;
+			}
 
-			String line =
-					csv(eventId) + ","
-					+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
-					+ csv(station) + ","
-					+ csv(ref.channel) + ","
-					+ csv(ref.classification) + ","
-					+ csv(pTag == null ? "" : pTag.getTimeString()) + ","
-					+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
-					+ csv(codaTag == null ? "" : codaTag.getTimeString()) + ","
-					+ csv(codaTag == null ? "" : doubleString(codaTag.durationSec)) + ","
-					+ csv(codaTag == null ? "" : doubleString(codaTag.maxAbsAmplitude)) + ","
-					+ csv(codaTag == null ? "" : codaTag.maxAbsTime) + ","
-					+ csv(codaTag == null ? "" : doubleString(codaTag.peakToPeakAmplitude)) + ","
-					+ csv(ref.operator) + ","
-					+ csv(ref.note);
+			if (tag.isP()) {
+				if (pTag == null || tag.startTime < pTag.startTime) {
+					pTag = tag;
+				}
+			}
+
+			if (tag.isS()) {
+				if (sTag == null || tag.startTime < sTag.startTime) {
+					sTag = tag;
+				}
+			}
+
+			if ("END".equalsIgnoreCase(tag.phase)) {
+				if (endTag == null || tag.startTime > endTag.startTime) {
+					endTag = tag;
+				}
+			}
+		}
+
+		TagData ref =
+				pTag != null ? pTag :
+				classTag != null ? classTag :
+				sTag != null ? sTag :
+				endTag;
+
+		if (ref == null) {
+			continue;
+		}
+
+		String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
+		String station = getStationCode(ref);
+		
+		
+		String line =
+				csv(eventId) + ","
+				+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
+				+ csv(station) + ","
+				+ csv(ref.channel) + ","
+				+ csv(ref.classification) + ","
+				+ csv(pTag == null ? "" : pTag.getTimeString()) + ","
+				+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
+				+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
+				+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
+				+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
+				+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
+				+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
+				+ csv(endTag == null ? "" : doubleString(endTag.dominantFrequencyHz)) + ","
+				+ csv(ref.operator) + ","
+				+ csv(ref.note);
 
 			ArrayList<String> allLines = linesByDayAll.get(ymd);
 			if (allLines == null) {
@@ -1006,8 +1008,9 @@ public class TagMenu extends JPopupMenu {
 
 		BufferedWriter bw = new BufferedWriter(new FileWriter(outFile));
 
-		bw.write("eventId,originTime,station,channel,classification,pTime,sTime,codaTime,"
+		bw.write("eventId,originTime,station,channel,classification,pTime,sTime,endTime,"
 				+ "durationSec,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
+				+ "dominantFrequencyHz,"
 				+ "operator,note\n");
 
 		for (String line : lines) {
