@@ -856,7 +856,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 public void calculateAmplitudeForEvent(final String eventId) {
 
     final TagData pPick = findPhasePick(eventId, "P");
-    final TagData codaPick = findPhasePick(eventId, "CODA");
+    final TagData codaPick = findPhasePick(eventId, "END");
 
     if (pPick == null || codaPick == null) {
         return;
@@ -1131,7 +1131,9 @@ private void drawPickedDurations(Graphics2D g2) {
 }
 
 	private TagData findPhasePick(String eventId, String phase) {
+
 		for (TagData tag : tagData) {
+
 			if (!tag.channel.equals(settings.channel)) {
 				continue;
 			}
@@ -1140,7 +1142,11 @@ private void drawPickedDurations(Graphics2D g2) {
 				continue;
 			}
 
-			if (phase.equalsIgnoreCase(tag.phase)) {
+			if ("END".equalsIgnoreCase(phase)) {
+				if (tag.isCoda()) {
+					return tag;
+				}
+			} else if (phase.equalsIgnoreCase(tag.phase)) {
 				return tag;
 			}
 		}
@@ -1365,7 +1371,7 @@ private void drawPickedDurations(Graphics2D g2) {
 
 		actionMap.put("quickPickCoda", new AbstractAction() {
 			public void actionPerformed(ActionEvent e) {
-				doQuickPick("CODA");
+				doQuickPick("END");
 			}
 		});
 	}

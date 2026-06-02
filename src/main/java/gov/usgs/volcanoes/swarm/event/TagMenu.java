@@ -487,14 +487,35 @@ public class TagMenu extends JPopupMenu {
 		setJ2k(pickTime);
 
 		if ("P".equalsIgnoreCase(phase)) {
-			createPhasePick("P", "IMPULSIVE", "UNKNOWN", 1);
+
+			createPhasePick(
+					"P",
+					"IMPULSIVE",
+					"UNKNOWN",
+					1);
 
 		} else if ("S".equalsIgnoreCase(phase)) {
-			createPhasePick("S", "EMERGENT", "UNKNOWN", 2);
 
-		} else if ("CODA".equalsIgnoreCase(phase)) {
-			createPhasePick("CODA", "", "", 1);
+			createPhasePick(
+					"S",
+					"",
+					"",
+					1);
+
+		} else if ("END".equalsIgnoreCase(phase)
+				|| "CODA".equalsIgnoreCase(phase)) {
+
+			createPhasePick(
+					"END",
+					"",
+					"",
+					1);
 		}
+
+		repaintPanels();
+
+		hvp.invalidate();
+		hvp.repaint();
 	}
 
     private void createOperatorMenu() {
@@ -581,54 +602,81 @@ public class TagMenu extends JPopupMenu {
 		}
 	}
 
-    private void createPhasePickMenus() {
-        JMenu phaseMenu = new JMenu("Phase Pick");
-        this.add(phaseMenu);
+	private void createPhasePickMenus() {
 
-        createPOrSMenu(phaseMenu, "P");
-        createPOrSMenu(phaseMenu, "S");
+		JMenu phaseMenu = new JMenu("Phase Pick");
+		this.add(phaseMenu);
 
-        phaseMenu.addSeparator();
+		/*
+		 * P PHASE: tetap lengkap
+		 * onset: IMPULSIVE / EMERGENT
+		 * polarity: + / - / UNKNOWN
+		 * uncertainty: 1-4 ms
+		 */
+		createPMenu(phaseMenu);
 
-		JMenuItem codaItem = new JMenuItem("CODA");
-		codaItem.addActionListener(new ActionListener() {
+		/*
+		 * S PHASE: sederhana, langsung pick S
+		 */
+		JMenuItem sItem = new JMenuItem("S");
+		sItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				createPhasePick("CODA", "CODA", "", 1);
+				createPhasePick("S", "", "", 1);
 			}
 		});
-		phaseMenu.add(codaItem);
-    }
+		phaseMenu.add(sItem);
 
-    private void createPOrSMenu(JMenu parentMenu, final String phase) {
-        JMenu pMenu = new JMenu(phase);
-        parentMenu.add(pMenu);
+		/*
+		 * END: pengganti CODA
+		 */
+		JMenuItem endItem = new JMenuItem("END");
+		endItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				createPhasePick("END", "", "", 1);
+			}
+		});
+		phaseMenu.add(endItem);
+	}
 
-        String[] onsets = { "IMPULSIVE", "EMERGENT" };
-        String[] polarities = { "UP", "DOWN", "UNKNOWN" };
+	private void createPMenu(JMenu parentMenu) {
 
-        for (final String onset : onsets) {
-            JMenu onsetMenu = new JMenu(onset);
-            pMenu.add(onsetMenu);
+		JMenu pMenu = new JMenu("P");
+		parentMenu.add(pMenu);
 
-            for (final String polarity : polarities) {
-                JMenu polarityMenu = new JMenu(polarity);
-                onsetMenu.add(polarityMenu);
+		String[] onsets = { "IMPULSIVE", "EMERGENT" };
+		String[] polarities = { "+", "-", "UNKNOWN" };
 
-                for (int i = 1; i <= 4; i++) {
-                    final int uncertaintyMs = i;
-                    JMenuItem uncertaintyItem = new JMenuItem(uncertaintyMs + " ms");
+		for (final String onset : onsets) {
 
-                    uncertaintyItem.addActionListener(new ActionListener() {
-                        public void actionPerformed(ActionEvent e) {
-                            createPhasePick(phase, onset, polarity, uncertaintyMs);
-                        }
-                    });
+			JMenu onsetMenu = new JMenu(onset);
+			pMenu.add(onsetMenu);
 
-                    polarityMenu.add(uncertaintyItem);
-                }
-            }
-        }
-    }
+			for (final String polarity : polarities) {
+
+				JMenu polarityMenu = new JMenu(polarity);
+				onsetMenu.add(polarityMenu);
+
+				for (int i = 1; i <= 4; i++) {
+
+					final int uncertaintyMs = i;
+					JMenuItem uncertaintyItem = new JMenuItem(uncertaintyMs + " ms");
+
+					uncertaintyItem.addActionListener(new ActionListener() {
+						public void actionPerformed(ActionEvent e) {
+							createPhasePick(
+									"P",
+									onset,
+									polarity,
+									uncertaintyMs);
+						}
+					});
+
+					polarityMenu.add(uncertaintyItem);
+				}
+			}
+		}
+	}
+
 
 	private void createPhasePick(
 			String phase,
@@ -665,7 +713,7 @@ public class TagMenu extends JPopupMenu {
 
 		hvp.getTagData().add(tag);
 
-		if ("CODA".equalsIgnoreCase(phase)) {
+		if ("END".equalsIgnoreCase(phase)) {
 			hvp.calculateAmplitudeForEvent(eventId);
 		}
 

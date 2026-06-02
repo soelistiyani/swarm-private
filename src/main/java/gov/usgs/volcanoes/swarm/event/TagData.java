@@ -166,27 +166,43 @@ public class TagData implements Comparator<TagData> {
         return "S".equalsIgnoreCase(phase);
     }
 
-    public boolean isCoda() {
-        return "CODA".equalsIgnoreCase(phase);
-    }
+	public boolean isCoda() {
+		return "END".equalsIgnoreCase(phase)
+				|| "CODA".equalsIgnoreCase(phase);
+	}
 
-    public String getPhaseLabel() {
-        if (!isPhasePick()) {
-            return classification;
-        }
+	public String getPhaseLabel() {
 
-        String label = phase;
+		if (!isPhasePick()) {
+			return classification;
+		}
 
-        if (isP() || isS()) {
-            if ("UP".equalsIgnoreCase(polarity)) {
-                label += "+";
-            } else if ("DOWN".equalsIgnoreCase(polarity)) {
-                label += "-";
-            }
-        }
+		if (isP()) {
 
-        return label;
-    }
+			String label = "P";
+
+			if ("+".equalsIgnoreCase(polarity)
+					|| "UP".equalsIgnoreCase(polarity)) {
+				label += "+";
+
+			} else if ("-".equalsIgnoreCase(polarity)
+					|| "DOWN".equalsIgnoreCase(polarity)) {
+				label += "-";
+			}
+
+			return label;
+		}
+
+		if (isS()) {
+			return "S";
+		}
+
+		if (isCoda()) {
+			return "END";
+		}
+
+		return phase;
+	}
 
 	public String toString() {
 		return J2kSec.format(TIME_FORMAT_MS, startTime)

@@ -1024,24 +1024,31 @@ public class WaveViewPanel extends JComponent {
     }
 
     // draw tag/label box
-    if (transparent) {
-      g2.setColor(Color.WHITE);
-    } else {
-      g2.setColor(color);
-    }
-    FontMetrics fm = g2.getFontMetrics();
-    int width = fm.stringWidth(tag);
-    int height = fm.getAscent();
-    int offset = 2;
-    int lw = width + 2 * offset;
-    g2.fillRect((int) x, 3, lw, height + 2 * offset);
+	if (transparent) {
+	  g2.setColor(new Color(255, 255, 255, 160));
+	} else {
+	  g2.setColor(new Color(
+			  color.getRed(),
+			  color.getGreen(),
+			  color.getBlue(),
+			  90));
+	}
 
-    // draw text in tag/label box
-    g2.setColor(Color.BLACK);
-    g2.drawRect((int) x, 3, lw, height + 2 * offset);
+	String label = tag;
 
-    g2.drawString(tag, (int) x + offset, 3 + (fm.getAscent() + offset));
+	FontMetrics fm = g2.getFontMetrics();
+	int width = fm.stringWidth(label);
+	int height = fm.getAscent();
+	int offset = 2;
+	int lw = width + 2 * offset;
 
+	g2.fillRect((int) x, 3, lw, height + 2 * offset);
+
+	g2.setColor(Color.BLACK);
+	g2.drawRect((int) x, 3, lw, height + 2 * offset);
+
+	g2.drawString(label, (int) x + offset, 3 + (fm.getAscent() + offset));
+	
   }
 
   /**
@@ -1065,28 +1072,39 @@ public class WaveViewPanel extends JComponent {
     g2.draw(new Line2D.Double(x, yOffset, x, getHeight() - bottomHeight - 1));
 
     // get color
-    Color color = Color.GRAY;
-    g2.setColor(color);
+	Color color = tag.color == null
+			? Color.GRAY
+			: tag.color;
 
     // draw tag/label box
-    if (transparent) {
-      g2.setColor(Color.WHITE);
-    } else {
-      g2.setColor(color);
-    }
-    FontMetrics fm = g2.getFontMetrics();
-    int width = fm.stringWidth(tag.classification);
-    int height = fm.getAscent();
-    int offset = 2;
-    int lw = width + 2 * offset;
-    g2.fillRect((int) x, 3, lw, height + 2 * offset);
+	if (transparent) {
+	  g2.setColor(new Color(255, 255, 255, 160));
+	} else {
+	  g2.setColor(new Color(
+			  color.getRed(),
+			  color.getGreen(),
+			  color.getBlue(),
+			  90));
+	}
 
-    // draw text in tag/label box
-    g2.setColor(Color.BLACK);
-    g2.drawRect((int) x, 3, lw, height + 2 * offset);
+//	String label = tag;
 
-    g2.drawString(tag.classification, (int) x + offset, 3 + (fm.getAscent() + offset));
+	String label = tag.isPhasePick()
+			? tag.getPhaseLabel()
+			: tag.classification;
 
+	FontMetrics fm = g2.getFontMetrics();
+	int width = fm.stringWidth(label);
+	int height = fm.getAscent();
+	int offset = 2;
+	int lw = width + 2 * offset;
+
+	g2.fillRect((int) x, 3, lw, height + 2 * offset);
+
+	g2.setColor(Color.BLACK);
+	g2.drawRect((int) x, 3, lw, height + 2 * offset);
+
+	g2.drawString(label, (int) x + offset, 3 + (fm.getAscent() + offset));
   }
 
   public void setUseFilterLabel(boolean b) {
