@@ -912,8 +912,16 @@ public class TagMenu extends JPopupMenu {
 
 		String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
 		String station = getStationCode(ref);
-		
-		
+
+		double dominantFrequencyHz = Double.NaN;
+
+		if (pTag != null && endTag != null && endTag.startTime > pTag.startTime) {
+			dominantFrequencyHz =
+					hvp.calculateDominantFrequencyForWindow(
+							pTag.startTime,
+							endTag.startTime);
+		}
+
 		String line =
 				csv(eventId) + ","
 				+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
@@ -927,7 +935,7 @@ public class TagMenu extends JPopupMenu {
 				+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
 				+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 				+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
-				+ csv(endTag == null ? "" : doubleString(endTag.dominantFrequencyHz)) + ","
+				+ csv(doubleString(dominantFrequencyHz)) + ","
 				+ csv(ref.operator) + ","
 				+ csv(ref.note);
 
@@ -999,8 +1007,7 @@ public class TagMenu extends JPopupMenu {
 					JOptionPane.ERROR_MESSAGE);
 		}
 	}
-	
-	
+
 /**
  * Helper Metode Export Katalog Harian by Day 
  */ 

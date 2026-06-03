@@ -976,6 +976,111 @@ public void calculateAmplitudeForEvent(final String eventId) {
     worker.start();
 }
 
+	public double calculateDominantFrequencyForWindow(
+			double startTime,
+			double endTime) {
+
+		Wave wave = parent.getWave(startTime, endTime);
+
+		if (wave == null) {
+			return Double.NaN;
+		}
+
+		int[] data = wave.buffer;
+
+		if (data == null || data.length == 0) {
+			return Double.NaN;
+		}
+
+		double samplingRate = wave.getSamplingRate();
+		double waveStart = wave.getStartTime();
+
+		if (samplingRate <= 0) {
+			return Double.NaN;
+		}
+
+		int i1 = (int) Math.max(
+				0,
+				Math.round((startTime - waveStart) * samplingRate));
+
+		int i2 = (int) Math.min(
+				data.length - 1,
+				Math.round((endTime - waveStart) * samplingRate));
+
+		if (i2 <= i1) {
+			return Double.NaN;
+		}
+
+		return calculateDominantFrequency(
+				data,
+				i1,
+				i2,
+				samplingRate,
+				0.5,
+				20.0);
+	}
+
+	private double calculateDominantFrequency(
+			int[] data,
+			int i1,
+			int i2,
+			double samplingRate,
+			double minFreq,
+			double maxFreq) {
+
+		int n = i2 - i1 + 1;
+
+		if (n < 8 || samplingRate <= 0) {
+			return Double.NaN;
+		}
+
+		double mean = 0.0;
+
+		for (int i = i1; i <= i2; i++) {
+			mean += data[i];
+		}
+
+		mean /= n;
+
+		int half = n / 2;
+
+		double bestFreq = Double.NaN;
+		double bestAmp = 0.0;
+
+		for (int k = 1; k < half; k++) {
+
+			double freq = k * samplingRate / n;
+
+			if (freq < minFreq || freq > maxFreq) {
+				continue;
+			}
+
+			double real = 0.0;
+			double imag = 0.0;
+
+			for (int j = 0; j < n; j++) {
+
+				double value = data[i1 + j] - mean;
+
+				double angle =
+						-2.0 * Math.PI * k * j / n;
+
+				real += value * Math.cos(angle);
+				imag += value * Math.sin(angle);
+			}
+
+			double amp = Math.sqrt(real * real + imag * imag);
+
+			if (amp > bestAmp) {
+				bestAmp = amp;
+				bestFreq = freq;
+			}
+		}
+
+		return bestFreq;
+	}
+
+
 
   private static final Color DARK_GREEN = new Color(0, 168, 0);
 
