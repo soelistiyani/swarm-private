@@ -269,19 +269,9 @@ public class SeismicityStatisticsDialog extends JDialog {
 		gbc.anchor = GridBagConstraints.WEST;
 		filterPanel.add(endPanel, gbc);
 
-		// Button Load Catalog
-		gbc.gridx = 1;
-		gbc.gridy = 4;
-		gbc.gridwidth = 2;
-		gbc.fill = GridBagConstraints.NONE;
-		gbc.anchor = GridBagConstraints.WEST;
-
-		JButton loadButton = new JButton("Load Catalog");
-		filterPanel.add(loadButton, gbc);
-
 		// TimeZone
 		gbc.gridx = 0;
-		gbc.gridy = 5;
+		gbc.gridy = 4;
 		gbc.gridwidth = 1;
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 		gbc.anchor = GridBagConstraints.WEST;
@@ -299,6 +289,16 @@ public class SeismicityStatisticsDialog extends JDialog {
 
 		timezoneCombo.addActionListener(e -> updateTimeRangeFromCatalog());
 		filterPanel.add(timezoneCombo, gbc);
+
+		// Button Load Catalog
+		gbc.gridx = 1;
+		gbc.gridy = 5;
+		gbc.gridwidth = 2;
+		gbc.fill = GridBagConstraints.NONE;
+		gbc.anchor = GridBagConstraints.WEST;
+
+		JButton loadButton = new JButton("Load Catalog");
+		filterPanel.add(loadButton, gbc);
 
 		// Station
 		gbc.gridx = 0;
