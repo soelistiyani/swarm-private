@@ -6,21 +6,26 @@ public class CatalogEvent {
 
     public LocalDateTime time;
     public String station;
+	public String channel;
     public String eventType;
     public double amplitude;
     public double duration;
+	public double amplitudeUmPerSec;
 
-    public CatalogEvent(
-            LocalDateTime time,
-            String station,
-            String eventType,
-            double amplitude,
-            double duration) {
+	public CatalogEvent(
+		LocalDateTime time,
+		String station,
+		String channel,
+		String eventType,
+		double amplitude,
+		double duration) {
 
-        this.time = time;
-        this.station = station;
-        this.eventType = eventType;
-        this.amplitude = amplitude;
-        this.duration = duration;
-    }
+		this.time = time;
+		this.station = station;
+		this.channel = channel;
+		this.eventType = eventType;
+		this.amplitude = amplitude;
+		this.duration = duration;
+		this.amplitudeUmPerSec = amplitude;
+	}
 }

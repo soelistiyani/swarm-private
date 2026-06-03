@@ -8,6 +8,9 @@ public class EventStatistics {
 
     public double minAmplitude = Double.MAX_VALUE;
     public double maxAmplitude = -Double.MAX_VALUE;
+	
+	public double minAmplitudeUmPerSec = Double.MAX_VALUE;
+	public double maxAmplitudeUmPerSec = -Double.MAX_VALUE;
 
     public double minDuration = Double.MAX_VALUE;
     public double maxDuration = -Double.MAX_VALUE;
@@ -29,19 +32,29 @@ public class EventStatistics {
             minDuration = Math.min(minDuration, event.duration);
             maxDuration = Math.max(maxDuration, event.duration);
         }
+		
+		if (!Double.isNaN(event.amplitudeUmPerSec)) {
+		    minAmplitudeUmPerSec =
+		        Math.min(minAmplitudeUmPerSec, event.amplitudeUmPerSec);
+
+		    maxAmplitudeUmPerSec =
+		        Math.max(maxAmplitudeUmPerSec, event.amplitudeUmPerSec);
+		}
     }
 
-    public Object[] toTableRow() {
+	public Object[] toTableRow() {
 
-        return new Object[] {
-            eventType,
-            count,
-            format(minAmplitude),
-            format(maxAmplitude),
-            format(minDuration),
-            format(maxDuration)
-        };
-    }
+		return new Object[] {
+			eventType,
+			count,
+			format(minAmplitude),
+			format(maxAmplitude),
+			format(minAmplitudeUmPerSec),
+			format(maxAmplitudeUmPerSec),
+			format(minDuration),
+			format(maxDuration)
+		};
+	}
 
     private String format(double value) {
 

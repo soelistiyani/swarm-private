@@ -120,12 +120,13 @@ public class CatalogStatisticsEngine {
                 LocalDateTime time = parseTime(get(p, col, "time"));
 
                 String station = get(p, col, "station");
+				String channel = get(p, col, "channel");
                 String eventType = get(p, col, "type");
 
                 double amplitude = parseDouble(get(p, col, "amplitude"));
                 double duration = parseDouble(get(p, col, "duration"));
 
-                events.add(new CatalogEvent(time, station, eventType, amplitude, duration));
+                events.add(new CatalogEvent(time, station, channel, eventType, amplitude, duration));
 
 			} catch (Exception ex) {
 				System.out.println("[CatalogStatisticsEngine] Failed parse line:");

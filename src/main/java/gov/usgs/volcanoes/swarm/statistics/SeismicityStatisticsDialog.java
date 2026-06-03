@@ -358,8 +358,10 @@ public class SeismicityStatisticsDialog extends JDialog {
 		String[] columns = {
 			"Event Type",
 			"Count",
-			"Amp Min",
-			"Amp Max",
+			"Amp Min Count",
+			"Amp Max Count",
+			"Amp Min um/s",
+			"Amp Max um/s",
 			"Duration Min",
 			"Duration Max"
 		};
@@ -505,6 +507,64 @@ public class SeismicityStatisticsDialog extends JDialog {
 					startUtc,
 					endUtc
 				);
+
+			File appDir = new File(System.getProperty("user.dir"));
+
+			File metadataFile = new File(
+				appDir,
+				"SwarmMetadata.config"
+			);
+
+			System.out.println(
+				"Swarm app dir = " + appDir.getAbsolutePath()
+			);
+
+			System.out.println(
+				"Metadata file = " + metadataFile.getAbsolutePath()
+			);
+
+			System.out.println(
+				"Metadata exists = " + metadataFile.exists()
+			);
+
+			Map<String, Double> multipliers =
+				MetadataMultiplierReader.readMultipliers(metadataFile);
+				
+			System.out.println(
+				"Multiplier count = " + multipliers.size()
+			);
+
+			for (CatalogEvent event : catalogEvents) {
+
+				double multiplier =
+					MetadataMultiplierReader.getMultiplier(
+						multipliers,
+						event.channel
+					);
+
+				if (multiplier == 1.0) {
+
+					multiplier =
+						MetadataMultiplierReader.getMultiplier(
+							multipliers,
+							event.station
+						);
+				}
+
+				if (!Double.isNaN(event.amplitude)) {
+
+					event.amplitudeUmPerSec =
+						event.amplitude * multiplier;
+				}
+
+				System.out.println(
+					"channel=" + event.channel
+					+ ", station=" + event.station
+					+ ", amp=" + event.amplitude
+					+ ", multiplier=" + multiplier
+					+ ", amp_um=" + event.amplitudeUmPerSec
+				);
+			}
 
 			stationCombo.removeAllItems();
 			stationCombo.addItem("ALL");
