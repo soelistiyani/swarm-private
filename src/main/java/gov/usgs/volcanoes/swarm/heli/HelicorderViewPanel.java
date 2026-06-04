@@ -620,13 +620,13 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
   /**
    * Make inset panel tag enabled.
    */
-  protected void makeInsetPanelTagEnabled() {
-    if (insetWavePanel != null) {
-      insetWavePanel.getSettings().tagEnabled = parent.isTagEnabled();
-      insetWavePanel.setTagData(tagData);
-      insetWavePanel.setTagMenu(getTagMenu());
-    }
-  }
+	protected void makeInsetPanelTagEnabled() {
+		if (insetWavePanel != null) {
+			insetWavePanel.getSettings().tagEnabled = parent.isTagEnabled();
+			insetWavePanel.setTagData(tagData);
+			insetWavePanel.setTagMenu(getTagMenu());
+		}
+	}
 
   /**
    * Set helicorder.
@@ -1349,7 +1349,7 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
 
 	if (parent.isTagEnabled()) {
 
-//		drawPickedDurations(g2);
+		drawPickedDurations(g2);
 
 		for (TagData tag : tagData) {
 			if (tag.channel.equals(settings.channel)) {
@@ -1390,13 +1390,32 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
       }
 
       // now it's safe to draw the waveInsetPanel
-      Point p = insetWavePanel.getLocation();
-      g2.translate(p.x, p.y);
-      insetWavePanel.paint(g2);
-      Dimension wvd = insetWavePanel.getSize();
-      g.setColor(Color.gray);
-      g.drawRect(0, 0, wvd.width - 1, wvd.height);
-      g2.translate(-p.x, -p.y);
+//      Point p = insetWavePanel.getLocation();
+//      g2.translate(p.x, p.y);
+//      insetWavePanel.paint(g2);
+//      Dimension wvd = insetWavePanel.getSize();
+//      g.setColor(Color.gray);
+//      g.drawRect(0, 0, wvd.width - 1, wvd.height);
+//      g2.translate(-p.x, -p.y);
+
+		Point p = insetWavePanel.getLocation();
+		Dimension wvd = insetWavePanel.getSize();
+
+		/*
+		 * Draw solid background behind inset so helicorder tags/blocks
+		 * do not show through the wave/inset panel.
+		 */
+		g2.setColor(Color.WHITE);
+		g2.fillRect(p.x, p.y, wvd.width, wvd.height);
+
+		g2.translate(p.x, p.y);
+		insetWavePanel.paint(g2);
+
+		g2.setColor(Color.gray);
+		g2.drawRect(0, 0, wvd.width - 1, wvd.height);
+
+		g2.translate(-p.x, -p.y);
+
 
       /*
        * Not sure what below is meant to address. I removed the check because negative row offsets
@@ -1456,17 +1475,17 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
       g2.setPaint(pnt);
     }
 
-    if (parent.isTagEnabled()) {
-        drawPickedDurations(g2);
+//    if (parent.isTagEnabled()) {
+//        drawPickedDurations(g2);
 
-        for (TagData tag : tagData) {
-            if (tag.channel.equals(settings.channel)) {
-                if (!tag.isPhasePick()) {
-                    drawEventLabel(g2, tag);
-                }
-            }
-        }
-    }
+//        for (TagData tag : tagData) {
+//            if (tag.channel.equals(settings.channel)) {
+//                if (!tag.isPhasePick()) {
+//                    drawEventLabel(g2, tag);
+//                }
+//            }
+//        }
+//    }
 
     resized = false;
   }

@@ -62,6 +62,9 @@ public class TagMenu extends JPopupMenu {
 	private String currentEventId = "";
 
 	private String activeYmd = "";
+	private String loadedEventFileName = "";
+	
+	private boolean openedExistingFile = false;
 	
     private static String[][] defaultClassifications = {
         { "VT", "#fc7703" },
@@ -205,14 +208,39 @@ public class TagMenu extends JPopupMenu {
 		if (result == JFileChooser.APPROVE_OPTION) {
 			File file = chooser.getSelectedFile();
 			eventFileName = file.getAbsolutePath();
+			openedExistingFile = true;
 
 			loadEventFile();
 
 			JOptionPane.showMessageDialog(
 					hvp,
+					"Loaded SwarmTagger file for review/edit:\n"
+					+ eventFileName
+					+ "\n\nNew picks will be saved automatically to daily files "
+					+ "based on pick time.");
+
+			JOptionPane.showMessageDialog(
+					hvp,
 					"Loaded SwarmTagger file:\n" + eventFileName);
 		}
+		
+		if (!eventFileName.equals(loadedEventFileName)) {
+			loadEventFile();
+			loadedEventFileName = eventFileName;
+		}			
 	}
+	
+	private boolean containsTag(TagData newTag) {
+    for (TagData tag : hvp.getTagData()) {
+        if (tag.channel.equals(newTag.channel)
+                && tag.eventId.equals(newTag.eventId)
+                && tag.phase.equals(newTag.phase)
+                && Math.abs(tag.startTime - newTag.startTime) < 0.001) {
+            return true;
+        }
+    }
+    return false;
+}
 
 	private void createTaggerDirectoryMenu() {
 		JMenuItem dirItem = new JMenuItem("Set Tagger Directory");
@@ -300,8 +328,12 @@ public class TagMenu extends JPopupMenu {
 		String ymd = formatJ2k(j2kTime, "yyyyMMdd");
 		String year = formatJ2k(j2kTime, "yyyy");
 
+		/*
+		 * Jangan clear tagData saat tanggal berubah.
+		 * User boleh melanjutkan picking data lampau.
+		 * Cukup reset event aktif agar event tidak nyambung lintas hari.
+		 */
 		if (activeYmd.length() > 0 && !activeYmd.equals(ymd)) {
-			hvp.getTagData().clear();
 			currentEventId = "";
 		}
 
@@ -330,10 +362,22 @@ public class TagMenu extends JPopupMenu {
 				dayDir,
 				"SwarmTagger_" + ymd + "_" + station + "_" + op + ".csv");
 
-		eventFileName = file.getAbsolutePath();
+		String newEventFileName = file.getAbsolutePath();
 
-		if (!file.exists()) {
-			write();
+		/*
+		 * Autosave selalu mengikuti waktu pick.
+		 * Jadi kalau user membuka file 20260602 lalu pick di 20260603,
+		 * file aktif otomatis pindah ke SwarmTagger_20260603_....
+		 */
+		if (eventFileName == null || !eventFileName.equals(newEventFileName)) {
+
+			eventFileName = newEventFileName;
+
+			if (file.exists()) {
+				loadEventFile();
+			} else {
+				write();
+			}
 		}
 	}
 
@@ -428,7 +472,11 @@ public class TagMenu extends JPopupMenu {
                 }
 
                 TagData tag = new TagData(line);
-                hvp.getTagData().add(tag);
+//                hvp.getTagData().add(tag);
+
+					if (!containsTag(tag)) {
+						hvp.getTagData().add(tag);
+					}
 
                 if (operatorName.length() == 0 && tag.operator != null && tag.operator.length() > 0) {
                     operatorName = tag.operator;
@@ -711,7 +759,8 @@ public class TagMenu extends JPopupMenu {
 				operatorName,
 				lastNote);
 
-		hvp.getTagData().add(tag);
+//		hvp.getTagData().add(tag);
+		replaceSamePhasePick(tag);
 
 		if ("END".equalsIgnoreCase(phase)) {
 			hvp.calculateAmplitudeForEvent(eventId);
@@ -721,6 +770,40 @@ public class TagMenu extends JPopupMenu {
 
 		write();
 	}
+	
+	private void replaceSamePhasePick(TagData newTag) {
+
+		if (newTag == null) {
+			return;
+		}
+
+		/*
+		 * Untuk classification tag, jangan replace.
+		 * Classification tag adalah penanda event baru.
+		 */
+		if (!newTag.isPhasePick()) {
+			hvp.getTagData().add(newTag);
+			return;
+		}
+
+		TagData oldTag = null;
+
+		for (TagData tag : hvp.getTagData()) {
+			if (tag.channel.equals(newTag.channel)
+					&& tag.eventId.equals(newTag.eventId)
+					&& tag.phase.equals(newTag.phase)) {
+				oldTag = tag;
+				break;
+			}
+		}
+
+		if (oldTag != null) {
+			hvp.getTagData().remove(oldTag);
+		}
+
+		hvp.getTagData().add(newTag);
+	}
+	
 	
     private String findNearestEventIdOrCreate() {
         TagData nearest = null;
@@ -842,176 +925,202 @@ public class TagMenu extends JPopupMenu {
 /**
  * Metode Export Katalog Harian by Day 
  */ 
-	private void exportEventCatalogByDay() {
+private void exportEventCatalogByDay() {
 
-		if (taggerRootDir == null) {
-			loadTaggerRootDir();
-		}
+    if (taggerRootDir == null) {
+        loadTaggerRootDir();
+    }
 
-		Map<String, ArrayList<String>> linesByDayAll = new LinkedHashMap<String, ArrayList<String>>();
-		Map<String, Map<String, ArrayList<String>>> linesByDayStation =
-				new LinkedHashMap<String, Map<String, ArrayList<String>>>();
+    Map<String, ArrayList<String>> linesByDayAll =
+            new LinkedHashMap<String, ArrayList<String>>();
 
-		ArrayList<String> eventIds = new ArrayList<String>();
+    Map<String, Map<String, ArrayList<String>>> linesByDayStation =
+            new LinkedHashMap<String, Map<String, ArrayList<String>>>();
 
-		for (TagData tag : hvp.getTagData()) {
-			if (tag.eventId != null
-					&& tag.eventId.length() > 0
-					&& !eventIds.contains(tag.eventId)) {
-				eventIds.add(tag.eventId);
-			}
-		}
+    /*
+     * GROUP TAGS BY EVENT ID FIRST.
+     * This avoids scanning all tagData repeatedly for every event.
+     */
+    Map<String, ArrayList<TagData>> eventsById =
+            new LinkedHashMap<String, ArrayList<TagData>>();
 
-		Collections.sort(eventIds);
+    for (TagData tag : hvp.getTagData()) {
 
-		for (String eventId : eventIds) {
+        if (tag.eventId == null || tag.eventId.length() == 0) {
+            continue;
+        }
 
-		TagData classTag = null;
-		TagData pTag = null;
-		TagData sTag = null;
-		TagData endTag = null;
+        ArrayList<TagData> eventTags = eventsById.get(tag.eventId);
 
-		for (TagData tag : hvp.getTagData()) {
+        if (eventTags == null) {
+            eventTags = new ArrayList<TagData>();
+            eventsById.put(tag.eventId, eventTags);
+        }
 
-			if (!eventId.equals(tag.eventId)) {
-				continue;
-			}
+        eventTags.add(tag);
+    }
 
-			if (!tag.isPhasePick()) {
-				classTag = tag;
-			}
+    for (String eventId : eventsById.keySet()) {
 
-			if (tag.isP()) {
-				if (pTag == null || tag.startTime < pTag.startTime) {
-					pTag = tag;
-				}
-			}
+        ArrayList<TagData> eventTags = eventsById.get(eventId);
 
-			if (tag.isS()) {
-				if (sTag == null || tag.startTime < sTag.startTime) {
-					sTag = tag;
-				}
-			}
+        TagData classTag = null;
+        TagData pTag = null;
+        TagData sTag = null;
+        TagData endTag = null;
 
-			if ("END".equalsIgnoreCase(tag.phase)) {
-				if (endTag == null || tag.startTime > endTag.startTime) {
-					endTag = tag;
-				}
-			}
-		}
+        for (TagData tag : eventTags) {
 
-		TagData ref =
-				pTag != null ? pTag :
-				classTag != null ? classTag :
-				sTag != null ? sTag :
-				endTag;
+            if (!tag.isPhasePick()) {
+                classTag = tag;
+            }
 
-		if (ref == null) {
-			continue;
-		}
+            if (tag.isP()) {
+                if (pTag == null || tag.startTime < pTag.startTime) {
+                    pTag = tag;
+                }
+            }
 
-		String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
-		String station = getStationCode(ref);
+            if (tag.isS()) {
+                if (sTag == null || tag.startTime < sTag.startTime) {
+                    sTag = tag;
+                }
+            }
 
-		double dominantFrequencyHz = Double.NaN;
+            if ("END".equalsIgnoreCase(tag.phase)
+                    || "CODA".equalsIgnoreCase(tag.phase)) {
+                if (endTag == null || tag.startTime > endTag.startTime) {
+                    endTag = tag;
+                }
+            }
+        }
 
-		if (pTag != null && endTag != null && endTag.startTime > pTag.startTime) {
-			dominantFrequencyHz =
-					hvp.calculateDominantFrequencyForWindow(
-							pTag.startTime,
-							endTag.startTime);
-		}
+        TagData ref =
+                pTag != null ? pTag :
+                classTag != null ? classTag :
+                sTag != null ? sTag :
+                endTag;
 
-		String line =
-				csv(eventId) + ","
-				+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
-				+ csv(station) + ","
-				+ csv(ref.channel) + ","
-				+ csv(ref.classification) + ","
-				+ csv(pTag == null ? "" : pTag.getTimeString()) + ","
-				+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
-				+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
-				+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
-				+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
-				+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
-				+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
-				+ csv(doubleString(dominantFrequencyHz)) + ","
-				+ csv(ref.operator) + ","
-				+ csv(ref.note);
+        if (ref == null) {
+            continue;
+        }
 
-			ArrayList<String> allLines = linesByDayAll.get(ymd);
-			if (allLines == null) {
-				allLines = new ArrayList<String>();
-				linesByDayAll.put(ymd, allLines);
-			}
-			allLines.add(line);
+        String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
+        String station = getStationCode(ref);
 
-			Map<String, ArrayList<String>> stationMap = linesByDayStation.get(ymd);
-			if (stationMap == null) {
-				stationMap = new LinkedHashMap<String, ArrayList<String>>();
-				linesByDayStation.put(ymd, stationMap);
-			}
+        double dominantFrequencyHz = Double.NaN;
 
-			ArrayList<String> stationLines = stationMap.get(station);
-			if (stationLines == null) {
-				stationLines = new ArrayList<String>();
-				stationMap.put(station, stationLines);
-			}
-			stationLines.add(line);
-		}
+        if (pTag != null && endTag != null && endTag.startTime > pTag.startTime) {
+            dominantFrequencyHz =
+                    hvp.calculateDominantFrequencyForWindow(
+                            pTag.startTime,
+                            endTag.startTime);
+        }
 
-		try {
-			for (String ymd : linesByDayAll.keySet()) {
+        String line =
+                csv(eventId) + ","
+                + csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
+                + csv(station) + ","
+                + csv(ref.channel) + ","
+                + csv(ref.classification) + ","
+                + csv(pTag == null ? "" : pTag.getTimeString()) + ","
+                + csv(sTag == null ? "" : sTag.getTimeString()) + ","
+                + csv(endTag == null ? "" : endTag.getTimeString()) + ","
+                + csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
+                + csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
+                + csv(endTag == null ? "" : endTag.maxAbsTime) + ","
+                + csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
+                + csv(doubleString(dominantFrequencyHz)) + ","
+                + csv(ref.operator) + ","
+                + csv(ref.note);
 
-				String year = ymd.substring(0, 4);
+        ArrayList<String> allLines = linesByDayAll.get(ymd);
 
-				File dayCatalogDir = new File(
-						new File(
-								new File(taggerRootDir, "catalog"),
-								year),
-						ymd);
+        if (allLines == null) {
+            allLines = new ArrayList<String>();
+            linesByDayAll.put(ymd, allLines);
+        }
 
-				if (!dayCatalogDir.exists()) {
-					dayCatalogDir.mkdirs();
-				}
+        allLines.add(line);
 
-				writeCatalogFile(
-						new File(dayCatalogDir, "Swarm_EventCatalog_" + ymd + "_ALL.csv"),
-						linesByDayAll.get(ymd));
+        Map<String, ArrayList<String>> stationMap =
+                linesByDayStation.get(ymd);
 
-				File stationDir = new File(dayCatalogDir, "station");
+        if (stationMap == null) {
+            stationMap = new LinkedHashMap<String, ArrayList<String>>();
+            linesByDayStation.put(ymd, stationMap);
+        }
 
-				if (!stationDir.exists()) {
-					stationDir.mkdirs();
-				}
+        ArrayList<String> stationLines = stationMap.get(station);
 
-				Map<String, ArrayList<String>> stationMap = linesByDayStation.get(ymd);
+        if (stationLines == null) {
+            stationLines = new ArrayList<String>();
+            stationMap.put(station, stationLines);
+        }
 
-				for (String station : stationMap.keySet()) {
-					writeCatalogFile(
-							new File(stationDir, "Swarm_EventCatalog_" + ymd + "_" + station + ".csv"),
-							stationMap.get(station));
-				}
-			}
+        stationLines.add(line);
+    }
 
-			JOptionPane.showMessageDialog(
-					hvp,
-					"Event catalog exported by day to:\n"
-					+ new File(taggerRootDir, "catalog").getAbsolutePath());
+    try {
 
-		} catch (IOException ex) {
-			JOptionPane.showMessageDialog(
-					hvp,
-					ex.getMessage(),
-					"Error exporting catalog",
-					JOptionPane.ERROR_MESSAGE);
-		}
-	}
+        for (String ymd : linesByDayAll.keySet()) {
 
-/**
- * Helper Metode Export Katalog Harian by Day 
- */ 
-	private void writeCatalogFile(File outFile, ArrayList<String> lines) throws IOException {
+            String year = ymd.substring(0, 4);
+
+            File dayCatalogDir =
+                    new File(
+                            new File(
+                                    new File(taggerRootDir, "catalog"),
+                                    year),
+                            ymd);
+
+            if (!dayCatalogDir.exists()) {
+                dayCatalogDir.mkdirs();
+            }
+
+            writeCatalogFile(
+                    new File(
+                            dayCatalogDir,
+                            "Swarm_EventCatalog_" + ymd + "_ALL.csv"),
+                    linesByDayAll.get(ymd));
+
+            File stationDir = new File(dayCatalogDir, "station");
+
+            if (!stationDir.exists()) {
+                stationDir.mkdirs();
+            }
+
+            Map<String, ArrayList<String>> stationMap =
+                    linesByDayStation.get(ymd);
+
+            for (String station : stationMap.keySet()) {
+                writeCatalogFile(
+                        new File(
+                                stationDir,
+                                "Swarm_EventCatalog_" + ymd + "_" + station + ".csv"),
+                        stationMap.get(station));
+            }
+        }
+
+        JOptionPane.showMessageDialog(
+                hvp,
+                "Event catalog exported by day to:\n"
+                + new File(taggerRootDir, "catalog").getAbsolutePath());
+
+    } catch (IOException ex) {
+
+        JOptionPane.showMessageDialog(
+                hvp,
+                ex.getMessage(),
+                "Error exporting catalog",
+                JOptionPane.ERROR_MESSAGE);
+    }
+}
+
+	private void writeCatalogFile(
+			File outFile,
+			ArrayList<String> lines)
+			throws IOException {
 
 		BufferedWriter bw = new BufferedWriter(new FileWriter(outFile));
 

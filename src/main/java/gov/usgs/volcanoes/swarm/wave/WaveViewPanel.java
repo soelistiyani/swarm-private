@@ -1062,7 +1062,7 @@ public class WaveViewPanel extends JComponent {
     if (tag == null) {
       return;
     }
-
+	
     double[] t = getTranslation();
     double j2k = tag.startTime;
     double x = (j2k - t[1]) / t[0];
