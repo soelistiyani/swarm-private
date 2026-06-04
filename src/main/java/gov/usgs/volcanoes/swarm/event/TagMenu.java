@@ -48,7 +48,7 @@ public class TagMenu extends JPopupMenu {
     private static final long serialVersionUID = 8681764007165352268L;
 
     protected static final int transparency = 240;
-    protected static final int durationTransparency = 80;
+    protected static final int durationTransparency = 60;
     protected static final Color defaultColor = new Color(255, 69, 0, transparency);
 
     protected static HashMap<String, Color> colors = new HashMap<String, Color>();

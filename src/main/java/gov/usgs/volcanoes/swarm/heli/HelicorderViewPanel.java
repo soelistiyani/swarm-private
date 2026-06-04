@@ -38,7 +38,6 @@ import java.awt.Point;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -70,7 +69,8 @@ import java.util.Map;
  * 
  * @author Dan Cervelli
  */
-public class HelicorderViewPanel extends JComponent implements SwarmOptionsListener, KeyListener {
+//public class HelicorderViewPanel extends JComponent implements SwarmOptionsListener, KeyListener {
+public class HelicorderViewPanel extends JComponent implements SwarmOptionsListener {
   // private static final Logger LOGGER = LoggerFactory.getLogger(HelicorderViewPanel.class);
 
   private static final Color BACKGROUND_COLOR = new Color(0xf7, 0xf7, 0xf7);
@@ -151,7 +151,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 
     this.setRequestFocusEnabled(true);
 	this.setFocusable(true);
-	this.addKeyListener(this);
+//	this.addKeyListener(this);
     this.addMouseListener(new HelicorderMouseListener());
     this.addMouseMotionListener(new HelicorderMouseMotionListener());
     this.addMouseWheelListener(new HelicorderMouseWheelListener());
@@ -1119,65 +1119,80 @@ public void calculateAmplitudeForEvent(final String eventId) {
   }
 
 private void drawPickedDuration(Graphics2D g2, double t1, double t2, Color color) {
+
     if (Double.isNaN(t1) || Double.isNaN(t2) || t2 <= t1) {
         return;
     }
 
-    double chunk = heliRenderer.getTimeChunk();
-    double viewEnd = heliRenderer.getViewEndTime();
-
-    int firstRow = heliRenderer.getRow(t1);
-    int lastRow  = heliRenderer.getRow(t2);
-
-    if (firstRow < 0 && lastRow < 0) {
+    if (translation == null) {
         return;
     }
+
+    double graphLeft = translation[GRAPH_LEFT];
+    double graphRight = translation[GRAPH_RIGHT];
+    double rowHeight = translation[ROW_HEIGHT];
+    double graphY = translation[GRAPH_Y];
+
+    double minTime = translation[4];
+    double timeChunk = translation[6];
+
+    int firstRow = getHelicorderRowForTime(t1, minTime, timeChunk);
+    int lastRow = getHelicorderRowForTime(t2, minTime, timeChunk);
 
     int rowMin = Math.max(0, Math.min(firstRow, lastRow));
     int rowMax = Math.min(heliRenderer.getNumRows() - 1, Math.max(firstRow, lastRow));
 
     for (int row = rowMin; row <= rowMax; row++) {
-        double rowEnd = viewEnd - row * chunk;
-        double rowStart = rowEnd - chunk;
+
+        double rowStart = minTime + row * timeChunk;
+        double rowEnd = rowStart + timeChunk;
 
         double segStart = Math.max(t1, rowStart);
-        double segEnd   = Math.min(t2, rowEnd);
+        double segEnd = Math.min(t2, rowEnd);
 
         if (segEnd <= segStart) {
             continue;
         }
 
-        int x1 = (int) Math.round(heliRenderer.helicorderGetXPixel(segStart));
-        int x2 = (int) Math.round(heliRenderer.helicorderGetXPixel(segEnd));
+        int x1 = (int) Math.round(graphLeft + (segStart - rowStart) / translation[PIXEL_TIME_SPAN]);
+        int x2 = (int) Math.round(graphLeft + (segEnd - rowStart) / translation[PIXEL_TIME_SPAN]);
 
-        int x = Math.min(x1, x2);
+        int x = Math.max((int) graphLeft, Math.min(x1, x2));
         int w = Math.abs(x2 - x1);
+
+        if (x + w > graphRight) {
+            w = (int) graphRight - x;
+        }
 
         if (w <= 0) {
             continue;
         }
 
-        int y = (int) Math.round(row * translation[ROW_HEIGHT] + translation[GRAPH_Y]);
-        int h = (int) Math.round(translation[ROW_HEIGHT]);
+        int y = (int) Math.round(graphY + row * rowHeight);
 
-        int graphX = (int) heliRenderer.getGraphX();
-        int graphY = (int) heliRenderer.getGraphY();
-        int graphW = (int) heliRenderer.getGraphWidth();
-        int graphH = (int) heliRenderer.getGraphHeight();
+        /*
+         * Full row block. Kalau terlalu tebal, ubah h/y seperti komentar bawah.
+         */
+        int h = Math.max(4, (int) Math.round(rowHeight));
 
-        int clipX1 = Math.max(x, graphX);
-        int clipX2 = Math.min(x + w, graphX + graphW);
-
-        int clipY1 = Math.max(y, graphY);
-        int clipY2 = Math.min(y + h, graphY + graphH);
-
-        if (clipX2 <= clipX1 || clipY2 <= clipY1) {
-            continue;
-        }
+        /*
+         * Alternatif band tipis:
+         * int h = Math.max(4, (int) Math.round(rowHeight * 0.35));
+         * y = (int) Math.round(graphY + row * rowHeight + rowHeight * 0.32);
+         */
 
         g2.setColor(color);
-        g2.fillRect(clipX1, clipY1, clipX2 - clipX1, clipY2 - clipY1);
+        g2.fillRect(x, y, w, h);
     }
+}
+
+private int getHelicorderRowForTime(double t, double minTime, double timeChunk) {
+
+    if (timeChunk <= 0) {
+        return -1;
+    }
+
+    return (int) Math.floor((t - minTime) / timeChunk);
 }
 
 private void drawPhaseLabel(Graphics2D g2, TagData tag) {
@@ -1200,40 +1215,56 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
     }
 }
 
-private void drawPickedDurations(Graphics2D g2) {
-    Map<String, TagData> pPicks = new HashMap<String, TagData>();
-    Map<String, TagData> codaPicks = new HashMap<String, TagData>();
+	private void drawPickedDurations(Graphics2D g2) {
 
-    for (Object obj : tagData) {
-        TagData tag = (TagData) obj;
+		Map<String, TagData> pPicks = new HashMap<String, TagData>();
+		Map<String, TagData> endPicks = new HashMap<String, TagData>();
+		Map<String, TagData> classTags = new HashMap<String, TagData>();
 
-        if (!tag.channel.equals(settings.channel)) {
-            continue;
-        }
+		for (Object obj : tagData) {
+			TagData tag = (TagData) obj;
 
-        if (tag.isP()) {
-            TagData old = pPicks.get(tag.eventId);
-            if (old == null || tag.startTime < old.startTime) {
-                pPicks.put(tag.eventId, tag);
-            }
-        } else if (tag.isCoda()) {
-            TagData old = codaPicks.get(tag.eventId);
-            if (old == null || tag.startTime > old.startTime) {
-                codaPicks.put(tag.eventId, tag);
-            }
-        }
-    }
+			if (!tag.channel.equals(settings.channel)) {
+				continue;
+			}
 
-    for (String eventId : pPicks.keySet()) {
-        TagData p = pPicks.get(eventId);
-        TagData coda = codaPicks.get(eventId);
+			if (!tag.isPhasePick()) {
+				classTags.put(tag.eventId, tag);
 
-        if (p != null && coda != null && coda.startTime > p.startTime) {
-            Color durationColor = TagMenu.getDurationColor(p.classification);
-            drawPickedDuration(g2, p.startTime, coda.startTime, durationColor);
-        }
-    }
-}
+			} else if (tag.isP()) {
+				TagData old = pPicks.get(tag.eventId);
+				if (old == null || tag.startTime < old.startTime) {
+					pPicks.put(tag.eventId, tag);
+				}
+
+			} else if (tag.isCoda()) {
+				TagData old = endPicks.get(tag.eventId);
+				if (old == null || tag.startTime > old.startTime) {
+					endPicks.put(tag.eventId, tag);
+				}
+			}
+		}
+
+		for (String eventId : pPicks.keySet()) {
+			TagData p = pPicks.get(eventId);
+			TagData end = endPicks.get(eventId);
+
+			if (p == null || end == null || end.startTime <= p.startTime) {
+				continue;
+			}
+
+			TagData classTag = classTags.get(eventId);
+
+			String classification =
+					classTag != null && classTag.classification != null
+							? classTag.classification
+							: p.classification;
+
+			Color durationColor = TagMenu.getDurationColor(classification);
+
+			drawPickedDuration(g2, p.startTime, end.startTime, durationColor);
+		}
+	}
 
 	private TagData findPhasePick(String eventId, String phase) {
 
@@ -1267,21 +1298,35 @@ private void drawPickedDurations(Graphics2D g2) {
    * @param t start time
    * @param color color
    */
-  private void drawEvent(Graphics2D g2, double t, Color color) {
-    if (Double.isNaN(t)) {
-      return;
-    }
-    int x = (int) (heliRenderer.helicorderGetXPixel(t));
-    int row = heliRenderer.getRow(t);
-    int y = (int) Math.ceil(row * translation[2] + translation[3]);
-    if (!(x < heliRenderer.getGraphX() || y < heliRenderer.getGraphY()
-        || x > heliRenderer.getGraphX() + heliRenderer.getGraphWidth() - 1
-        || y > heliRenderer.getGraphY() + heliRenderer.getGraphHeight() - 1)) {
-      g2.setColor(color);
-      int r = 12;
-      g2.fillOval(x - (r / 2), y, r, r);
-    }
-  }
+	private void drawEventLabel(Graphics2D g2, TagData tag) {
+		if (tag == null || Double.isNaN(tag.startTime)) {
+			return;
+		}
+
+		int x = (int) heliRenderer.helicorderGetXPixel(tag.startTime);
+		int row = heliRenderer.getRow(tag.startTime);
+		int y = (int) Math.ceil(row * translation[ROW_HEIGHT] + translation[GRAPH_Y]);
+
+		if (x < heliRenderer.getGraphX()
+				|| y < heliRenderer.getGraphY()
+				|| x > heliRenderer.getGraphX() + heliRenderer.getGraphWidth() - 1
+				|| y > heliRenderer.getGraphY() + heliRenderer.getGraphHeight() - 1) {
+			return;
+		}
+
+		String label = tag.classification == null ? "" : tag.classification;
+
+		Color color = tag.color == null
+				? TagMenu.getColor(label)
+				: tag.color;
+
+		g2.setColor(color);
+		int r = 12;
+		g2.fillOval(x - (r / 2), y, r, r);
+
+		g2.setColor(Color.BLACK);
+		g2.drawString(label, x + 8, y + 11);
+	}
 
   /**
    * Paint.
@@ -1301,17 +1346,15 @@ private void drawPickedDurations(Graphics2D g2) {
 
     drawMark(g2, startMark, DARK_GREEN);
     drawMark(g2, endMark, DARK_GREEN);
+
 	if (parent.isTagEnabled()) {
-		drawPickedDurations(g2);
 
-		for (Object obj : tagData) {
-			TagData tag = (TagData) obj;
+//		drawPickedDurations(g2);
 
+		for (TagData tag : tagData) {
 			if (tag.channel.equals(settings.channel)) {
-				if (tag.isPhasePick()) {
-					drawPhaseLabel(g2, tag);
-				} else {
-					drawEvent(g2, tag.startTime, tag.color);
+				if (!tag.isPhasePick()) {
+					drawEventLabel(g2, tag);
 				}
 			}
 		}
@@ -1413,6 +1456,18 @@ private void drawPickedDurations(Graphics2D g2) {
       g2.setPaint(pnt);
     }
 
+    if (parent.isTagEnabled()) {
+        drawPickedDurations(g2);
+
+        for (TagData tag : tagData) {
+            if (tag.channel.equals(settings.channel)) {
+                if (!tag.isPhasePick()) {
+                    drawEventLabel(g2, tag);
+                }
+            }
+        }
+    }
+
     resized = false;
   }
 
@@ -1499,45 +1554,5 @@ private void drawPickedDurations(Graphics2D g2) {
 	public HelicorderViewerFrame getFrame() {
 		return parent;
 	}
-
-	/*
-	 * KEY SHORTCUT
-	 */
-	public void keyPressed(KeyEvent e) {
-
-		if (!parent.isTagEnabled()) {
-			return;
-		}
-
-		if (Double.isNaN(lastMouseJ2K)) {
-			return;
-		}
-
-		if (!e.isControlDown()) {
-			return;
-		}
-
-		int key = e.getKeyCode();
-
-		if (key == KeyEvent.VK_P) {
-			getTagMenu().quickPick("P", lastMouseJ2K);
-			e.consume();
-			repaint();
-
-		} else if (key == KeyEvent.VK_S) {
-			getTagMenu().quickPick("S", lastMouseJ2K);
-			e.consume();
-			repaint();
-
-		} else if (key == KeyEvent.VK_C) {
-			getTagMenu().quickPick("CODA", lastMouseJ2K);
-			e.consume();
-			repaint();
-		}
-	}
-
-	public void keyReleased(KeyEvent e) {}
-
-	public void keyTyped(KeyEvent e) {}
-
-	}
+	
+}
