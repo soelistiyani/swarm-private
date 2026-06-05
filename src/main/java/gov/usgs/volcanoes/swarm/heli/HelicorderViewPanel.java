@@ -1181,8 +1181,12 @@ private void drawPickedDuration(Graphics2D g2, double t1, double t2, Color color
          * y = (int) Math.round(graphY + row * rowHeight + rowHeight * 0.32);
          */
 
-        g2.setColor(color);
-        g2.fillRect(x, y, w, h);
+		g2.setColor(new Color(
+				color.getRed(),
+				color.getGreen(),
+				color.getBlue(),
+				180));
+		g2.fillRect(x, y, w, h);
     }
 }
 

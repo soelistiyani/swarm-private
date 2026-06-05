@@ -7,6 +7,7 @@ import gov.usgs.volcanoes.swarm.heli.HelicorderViewPanel;
 import gov.usgs.volcanoes.swarm.wave.WaveViewPanel;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -16,6 +17,10 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +29,8 @@ import java.util.HashMap;
 import javax.swing.JFileChooser;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JTextArea;
+import javax.swing.JScrollPane;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
@@ -62,6 +69,7 @@ public class TagMenu extends JPopupMenu {
 	private String currentEventId = "";
 
 	private String activeYmd = "";
+	private String activeFileYmd = "";
 	private String loadedEventFileName = "";
 	
 	private boolean openedExistingFile = false;
@@ -142,17 +150,19 @@ public class TagMenu extends JPopupMenu {
 		createTaggerDirectoryMenu();
 		createNewSwarmTaggerMenu();
 		createOpenExistingTaggerMenu();
+		this.addSeparator();
 		createOperatorMenu();
 		this.addSeparator();
 		createClassificationMenus();
+		createDeleteCurrentEventMenu();
 		this.addSeparator();
 		createPhasePickMenus();
+		createDeletePickMenu();
+		createClearMenu();
 		this.addSeparator();
 		createNoteMenu();
 		this.addSeparator();
-		createExportCatalogMenu();
-		this.addSeparator();
-		createClearMenu();
+		createCatalogToolsMenu();
 	}
 
 	private void createNewSwarmTaggerMenu() {
@@ -289,6 +299,13 @@ public class TagMenu extends JPopupMenu {
 		}
 	}
 
+	private void setStatus(String message) {
+		if (hvp != null && hvp.getFrame() != null) {
+			hvp.getFrame().setStatus(message);
+		}
+	}
+
+
 	private void saveTaggerRootDir() {
 		try {
 			BufferedWriter bw = new BufferedWriter(new FileWriter(TAGGER_DIR_CONFIG));
@@ -338,6 +355,7 @@ public class TagMenu extends JPopupMenu {
 		}
 
 		activeYmd = ymd;
+		activeFileYmd = ymd;
 
 		String station = getStationCode();
 
@@ -512,14 +530,31 @@ public class TagMenu extends JPopupMenu {
 			bw.write(
 					"time,channel,classification,phase,onset,polarity,"
 					+ "uncertaintyMs,eventId,operator,note,"
-					+ "durationSec,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude\n");
+					+ "durationSec,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
+					+ "dominantFrequencyHz\n");
 
-            for (TagData data : tagData) {
-                bw.write(data.toString() + "\n");
-            }
+			for (TagData data : tagData) {
+
+				if (activeFileYmd != null && activeFileYmd.length() > 0) {
+					String dataYmd = formatJ2k(data.startTime, "yyyyMMdd");
+
+					if (!activeFileYmd.equals(dataYmd)) {
+						continue;
+					}
+				}
+
+				bw.write(data.toString() + "\n");
+			}
 
             bw.close();
             fw.close();
+			
+			setStatus(
+			    "Tagger saved | "
+			    + activeFileYmd
+			    + " | "
+			    + getStationCode()
+			);
 
         } catch (IOException e) {
             JOptionPane.showMessageDialog(
@@ -565,6 +600,25 @@ public class TagMenu extends JPopupMenu {
 		hvp.invalidate();
 		hvp.repaint();
 	}
+
+	private TagData findPhaseTag(String eventId, String phase) {
+		for (TagData tag : hvp.getTagData()) {
+			if (!eventId.equals(tag.eventId)) {
+				continue;
+			}
+
+			if ("END".equalsIgnoreCase(phase)) {
+				if (tag.isCoda()) {
+					return tag;
+				}
+			} else if (phase.equalsIgnoreCase(tag.phase)) {
+				return tag;
+			}
+		}
+
+		return null;
+	}
+
 
     private void createOperatorMenu() {
         JMenuItem operatorItem = new JMenuItem("Set Operator Name");
@@ -701,25 +755,45 @@ public class TagMenu extends JPopupMenu {
 
 			for (final String polarity : polarities) {
 
-				JMenu polarityMenu = new JMenu(polarity);
-				onsetMenu.add(polarityMenu);
+				if ("UNKNOWN".equalsIgnoreCase(polarity)) {
 
-				for (int i = 1; i <= 4; i++) {
+					JMenuItem unknownItem = new JMenuItem("UNKNOWN");
 
-					final int uncertaintyMs = i;
-					JMenuItem uncertaintyItem = new JMenuItem(uncertaintyMs + " ms");
-
-					uncertaintyItem.addActionListener(new ActionListener() {
+					unknownItem.addActionListener(new ActionListener() {
 						public void actionPerformed(ActionEvent e) {
 							createPhasePick(
 									"P",
 									onset,
-									polarity,
-									uncertaintyMs);
+									"UNKNOWN",
+									0);
 						}
 					});
 
-					polarityMenu.add(uncertaintyItem);
+					onsetMenu.add(unknownItem);
+
+				} else {
+
+					JMenu polarityMenu = new JMenu(polarity);
+					onsetMenu.add(polarityMenu);
+
+					for (int i = 1; i <= 4; i++) {
+
+						final int uncertaintyMs = i;
+						JMenuItem uncertaintyItem =
+								new JMenuItem(uncertaintyMs + " ms");
+
+						uncertaintyItem.addActionListener(new ActionListener() {
+							public void actionPerformed(ActionEvent e) {
+								createPhasePick(
+										"P",
+										onset,
+										polarity,
+										uncertaintyMs);
+							}
+						});
+
+						polarityMenu.add(uncertaintyItem);
+					}
 				}
 			}
 		}
@@ -763,7 +837,25 @@ public class TagMenu extends JPopupMenu {
 		replaceSamePhasePick(tag);
 
 		if ("END".equalsIgnoreCase(phase)) {
+
 			hvp.calculateAmplitudeForEvent(eventId);
+
+			TagData pTag = findPhaseTag(eventId, "P");
+
+			if (pTag != null && tag.startTime > pTag.startTime) {
+				tag.dominantFrequencyHz =
+						hvp.calculateDominantFrequencyForWindow(
+								pTag.startTime,
+								tag.startTime);
+			}
+
+			write();
+
+			exportEventCatalogByDaySilent();
+			setStatus(
+			    "Tagger saved | Catalog updated | "
+			    + activeFileYmd
+			);
 		}
 
 		repaintPanels();
@@ -861,6 +953,172 @@ public class TagMenu extends JPopupMenu {
         return classification;
     }
 
+	private void createDeletePickMenu() {
+
+		JMenu deleteMenu = new JMenu("Delete Phase Pick");
+
+		JMenuItem deleteP = new JMenuItem("Delete P");
+		deleteP.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deletePhasePick("P");
+			}
+		});
+
+		JMenuItem deleteS = new JMenuItem("Delete S");
+		deleteS.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deletePhasePick("S");
+			}
+		});
+
+		JMenuItem deleteEnd = new JMenuItem("Delete END");
+		deleteEnd.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deletePhasePick("END");
+			}
+		});
+
+		deleteMenu.add(deleteP);
+		deleteMenu.add(deleteS);
+		deleteMenu.add(deleteEnd);
+
+		this.add(deleteMenu);
+	}
+
+	private void deletePhasePick(String phase) {
+
+		String eventId = getActiveOrNearestEventId();
+
+		if (eventId == null || eventId.length() == 0) {
+			JOptionPane.showMessageDialog(hvp, "No event found near cursor.");
+			return;
+		}
+
+		TagData deleteTag = null;
+
+		for (TagData tag : hvp.getTagData()) {
+			if (!eventId.equals(tag.eventId)) {
+				continue;
+			}
+
+			if ("END".equalsIgnoreCase(phase)) {
+				if (tag.isCoda()) {
+					deleteTag = tag;
+					break;
+				}
+			} else if (phase.equalsIgnoreCase(tag.phase)) {
+				deleteTag = tag;
+				break;
+			}
+		}
+
+		if (deleteTag == null) {
+			JOptionPane.showMessageDialog(hvp, "No " + phase + " pick found.");
+			return;
+		}
+
+		int result = JOptionPane.showConfirmDialog(
+				hvp,
+				"Delete " + phase + " pick?",
+				"Confirm Delete",
+				JOptionPane.YES_NO_OPTION);
+
+		if (result == JOptionPane.YES_OPTION) {
+			hvp.getTagData().remove(deleteTag);
+			repaintPanels();
+			write();
+		}
+	}
+
+
+	private String getActiveOrNearestEventId() {
+
+		if (currentEventId != null && currentEventId.length() > 0) {
+			return currentEventId;
+		}
+
+		TagData nearest = null;
+		double minDiff = Double.MAX_VALUE;
+
+		for (TagData tag : hvp.getTagData()) {
+
+			if (!tag.channel.equals(hvp.getSettings().channel)) {
+				continue;
+			}
+
+			if (tag.eventId == null || tag.eventId.length() == 0) {
+				continue;
+			}
+
+			double diff = Math.abs(j2k - tag.startTime);
+
+			if (diff < 120 && diff < minDiff) {
+				minDiff = diff;
+				nearest = tag;
+			}
+		}
+
+		if (nearest != null) {
+			currentEventId = nearest.eventId;
+			return currentEventId;
+		}
+
+		return "";
+	}
+
+
+
+	private void createDeleteCurrentEventMenu() {
+
+		JMenuItem deleteEvent = new JMenuItem("Delete Current Event");
+
+		deleteEvent.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deleteCurrentEvent();
+			}
+		});
+
+		this.add(deleteEvent);
+	}
+
+	private void deleteCurrentEvent() {
+
+		String eventId = getActiveOrNearestEventId();
+
+		if (eventId == null || eventId.length() == 0) {
+			JOptionPane.showMessageDialog(hvp, "No event found near cursor.");
+			return;
+		}
+
+		int result = JOptionPane.showConfirmDialog(
+				hvp,
+				"Delete current event and all its P/S/END picks?",
+				"Confirm Delete Event",
+				JOptionPane.YES_NO_OPTION);
+
+		if (result != JOptionPane.YES_OPTION) {
+			return;
+		}
+
+		ArrayList<TagData> removeList = new ArrayList<TagData>();
+
+		for (TagData tag : hvp.getTagData()) {
+			if (eventId.equals(tag.eventId)) {
+				removeList.add(tag);
+			}
+		}
+
+		hvp.getTagData().removeAll(removeList);
+
+		if (eventId.equals(currentEventId)) {
+			currentEventId = "";
+		}
+
+		repaintPanels();
+		write();
+	}
+
+
     private void createClearMenu() {
         JMenuItem menuItem = new JMenuItem("Clear nearest tag");
 
@@ -906,26 +1164,762 @@ public class TagMenu extends JPopupMenu {
 /**
  * Export Katalog Harian.
  */ 
-	private void createExportCatalogMenu() {
+	private void createCatalogToolsMenu() {
 
-		JMenu exportMenu = new JMenu("Export Event Catalog");
+		JMenu catalogMenu = new JMenu("Catalog Tools");
 
-		JMenuItem exportByDay = new JMenuItem("Export All by Day");
-		exportByDay.addActionListener(new ActionListener() {
+		JMenuItem rebuildCurrentDay =
+				new JMenuItem("Rebuild Current Day");
+
+		rebuildCurrentDay.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				exportEventCatalogByDay();
+				rebuildCatalogForCurrentDay();
 			}
 		});
 
-		exportMenu.add(exportByDay);
+		catalogMenu.add(rebuildCurrentDay);
 
-		this.add(exportMenu);
+		JMenuItem rebuildDateRange =
+				new JMenuItem("Rebuild Date Range");
+
+		rebuildDateRange.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				rebuildCatalogForDateRange();
+			}
+		});
+
+		catalogMenu.add(rebuildDateRange);
+
+		JMenuItem validateCatalog =
+				new JMenuItem("Validate Catalog");
+
+		validateCatalog.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				validateCatalog();
+			}
+		});
+
+		catalogMenu.add(validateCatalog);
+
+		this.add(catalogMenu);
+	}
+
+	private void rebuildCatalogForCurrentDay() {
+
+		String ymd = formatJ2k(j2k, "yyyyMMdd");
+
+		rebuildCatalogForDay(ymd);
+
+		JOptionPane.showMessageDialog(
+				hvp,
+				"Catalog rebuilt for current day:\n" + ymd);
+	}
+
+	private void rebuildCatalogForDateRange() {
+
+		String start =
+				JOptionPane.showInputDialog(
+						hvp,
+						"Start date (YYYYMMDD):",
+						formatJ2k(j2k, "yyyyMMdd"));
+
+		if (start == null || start.trim().length() == 0) {
+			return;
+		}
+
+		String end =
+				JOptionPane.showInputDialog(
+						hvp,
+						"End date (YYYYMMDD):",
+						start);
+
+		if (end == null || end.trim().length() == 0) {
+			return;
+		}
+
+		start = start.trim();
+		end = end.trim();
+
+		try {
+			java.text.SimpleDateFormat sdf =
+					new java.text.SimpleDateFormat("yyyyMMdd");
+
+			sdf.setLenient(false);
+
+			java.util.Date startDate = sdf.parse(start);
+			java.util.Date endDate = sdf.parse(end);
+
+			if (endDate.before(startDate)) {
+				JOptionPane.showMessageDialog(
+						hvp,
+						"End date must be after start date.",
+						"Invalid Date Range",
+						JOptionPane.WARNING_MESSAGE);
+				return;
+			}
+
+			java.util.Calendar cal = java.util.Calendar.getInstance();
+			cal.setTime(startDate);
+
+			int count = 0;
+
+			while (!cal.getTime().after(endDate)) {
+				String ymd = sdf.format(cal.getTime());
+				rebuildCatalogForDay(ymd);
+				count++;
+
+				cal.add(java.util.Calendar.DATE, 1);
+			}
+
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Catalog rebuilt for "
+					+ count
+					+ " day(s).\n"
+					+ start
+					+ " to "
+					+ end);
+
+		} catch (Exception ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					ex.getMessage(),
+					"Invalid Date",
+					JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private void rebuildCatalogForDay(String ymd) {
+
+		if (taggerRootDir == null) {
+			loadTaggerRootDir();
+		}
+
+		try {
+			backupCatalogDay(ymd);
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Failed to backup catalog:\n" + ex.getMessage(),
+					"Backup Warning",
+					JOptionPane.WARNING_MESSAGE);
+		}
+
+		String year = ymd.substring(0, 4);
+
+		File dayTaggerDir = new File(
+				new File(
+						new File(taggerRootDir, "tagger"),
+						year),
+				ymd);
+
+		if (!dayTaggerDir.exists() || !dayTaggerDir.isDirectory()) {
+			return;
+		}
+
+		ArrayList<File> csvFiles = new ArrayList<File>();
+		collectTaggerCsvFiles(dayTaggerDir, csvFiles);
+
+		ArrayList<TagData> tags = new ArrayList<TagData>();
+
+		for (File csvFile : csvFiles) {
+			loadTagsFromFile(csvFile, tags);
+		}
+
+		rebuildCatalogFromTags(tags);
+	}
+
+	private void collectTaggerCsvFiles(File dir, ArrayList<File> files) {
+
+		File[] list = dir.listFiles();
+
+		if (list == null) {
+			return;
+		}
+
+		for (File f : list) {
+
+			if (f.isDirectory()) {
+				collectTaggerCsvFiles(f, files);
+
+			} else if (f.isFile()
+					&& f.getName().toLowerCase().endsWith(".csv")
+					&& f.getName().startsWith("SwarmTagger_")) {
+
+				files.add(f);
+			}
+		}
+	}
+
+	private void backupCatalogDay(String ymd) throws IOException {
+
+		String year = ymd.substring(0, 4);
+
+		File sourceDir = new File(
+				new File(
+						new File(taggerRootDir, "catalog"),
+						year),
+				ymd);
+
+		if (!sourceDir.exists()) {
+			return;
+		}
+
+		String stamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
+				.format(new java.util.Date());
+
+		File backupDir = new File(
+				new File(
+						new File(taggerRootDir, "backup"),
+						"catalog_backup_" + stamp),
+				year + File.separator + ymd);
+
+		copyDirectory(sourceDir, backupDir);
+	}
+
+	private void copyDirectory(File source, File target) throws IOException {
+
+		if (source.isDirectory()) {
+			if (!target.exists()) {
+				target.mkdirs();
+			}
+
+			File[] files = source.listFiles();
+
+			if (files != null) {
+				for (File f : files) {
+					copyDirectory(f, new File(target, f.getName()));
+				}
+			}
+
+		} else {
+			BufferedInputStream in =
+					new BufferedInputStream(new FileInputStream(source));
+
+			BufferedOutputStream out =
+					new BufferedOutputStream(new FileOutputStream(target));
+
+			byte[] buffer = new byte[8192];
+			int len;
+
+			while ((len = in.read(buffer)) > 0) {
+				out.write(buffer, 0, len);
+			}
+
+			in.close();
+			out.close();
+		}
+	}
+
+
+	private void validateCatalog() {
+
+		if (taggerRootDir == null) {
+			loadTaggerRootDir();
+		}
+
+		File taggerDir = new File(taggerRootDir, "tagger");
+
+		if (!taggerDir.exists() || !taggerDir.isDirectory()) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Tagger folder not found:\n" + taggerDir.getAbsolutePath(),
+					"Validate Catalog",
+					JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
+		ArrayList<File> csvFiles = new ArrayList<File>();
+		collectTaggerCsvFiles(taggerDir, csvFiles);
+
+		ArrayList<TagData> allTags = new ArrayList<TagData>();
+
+		for (File csvFile : csvFiles) {
+			loadTagsFromFile(csvFile, allTags);
+		}
+
+		String report = validateTags(allTags);
+
+		JTextArea textArea = new JTextArea(report);
+		textArea.setEditable(false);
+		textArea.setLineWrap(false);
+
+		JScrollPane scrollPane = new JScrollPane(textArea);
+		scrollPane.setPreferredSize(new Dimension(850, 500));
+
+		JOptionPane.showMessageDialog(
+				hvp,
+				scrollPane,
+				"Validate Catalog",
+				JOptionPane.INFORMATION_MESSAGE);
+	}
+
+	private String validateTags(ArrayList<TagData> tags) {
+
+		StringBuilder sb = new StringBuilder();
+
+		Map<String, ArrayList<TagData>> eventsById =
+				new LinkedHashMap<String, ArrayList<TagData>>();
+
+		for (TagData tag : tags) {
+
+			if (tag.eventId == null || tag.eventId.length() == 0) {
+				sb.append("Missing eventId: ")
+						.append(tag.toString())
+						.append("\n");
+				continue;
+			}
+
+			ArrayList<TagData> eventTags = eventsById.get(tag.eventId);
+
+			if (eventTags == null) {
+				eventTags = new ArrayList<TagData>();
+				eventsById.put(tag.eventId, eventTags);
+			}
+
+			eventTags.add(tag);
+		}
+
+		int warningCount = 0;
+
+		for (String eventId : eventsById.keySet()) {
+
+			ArrayList<TagData> eventTags = eventsById.get(eventId);
+
+			TagData classTag = null;
+			TagData pTag = null;
+			TagData sTag = null;
+			TagData endTag = null;
+
+			int pCount = 0;
+			int sCount = 0;
+			int endCount = 0;
+
+			for (TagData tag : eventTags) {
+
+				if (!tag.isPhasePick()) {
+					classTag = tag;
+				}
+
+				if (tag.isP()) {
+					pCount++;
+					if (pTag == null || tag.startTime < pTag.startTime) {
+						pTag = tag;
+					}
+				}
+
+				if (tag.isS()) {
+					sCount++;
+					if (sTag == null || tag.startTime < sTag.startTime) {
+						sTag = tag;
+					}
+				}
+
+				if (tag.isCoda()) {
+					endCount++;
+					if (endTag == null || tag.startTime > endTag.startTime) {
+						endTag = tag;
+					}
+				}
+			}
+
+			TagData ref =
+					pTag != null ? pTag :
+					classTag != null ? classTag :
+					sTag != null ? sTag :
+					endTag;
+
+			String time = ref == null ? "" : ref.getTimeString();
+			String station = ref == null ? "" : getStationCode(ref);
+			String classification = ref == null ? "" : ref.classification;
+			
+			if (classification == null || classification.trim().length() == 0) {
+			    warningCount++;
+			    sb.append("[WARNING] Empty classification | ")
+			            .append(time).append(" | ")
+			            .append(station).append(" | ")
+			            .append(eventId).append("\n");
+			}
+
+			if (classTag == null) {
+				warningCount++;
+				sb.append("[WARNING] Missing classification | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (pTag == null) {
+				warningCount++;
+				sb.append("[WARNING] Missing P | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(classification).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (endTag == null) {
+				warningCount++;
+				sb.append("[WARNING] Missing END | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(classification).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (pCount > 1) {
+				warningCount++;
+				sb.append("[WARNING] Multiple P picks | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (sCount > 1) {
+				warningCount++;
+				sb.append("[WARNING] Multiple S picks | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (endCount > 1) {
+				warningCount++;
+				sb.append("[WARNING] Multiple END picks | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (pTag != null && sTag != null && sTag.startTime < pTag.startTime) {
+				warningCount++;
+				sb.append("[WARNING] S before P | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (pTag != null && endTag != null && endTag.startTime <= pTag.startTime) {
+				warningCount++;
+				sb.append("[WARNING] END before/equal P | ")
+						.append(time).append(" | ")
+						.append(station).append(" | ")
+						.append(eventId).append("\n");
+			}
+
+			if (pTag != null && endTag != null && endTag.startTime > pTag.startTime) {
+				double duration = endTag.startTime - pTag.startTime;
+
+				if (duration < 0.5) {
+					warningCount++;
+					sb.append("[WARNING] Duration too short (<0.5 s) | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(duration).append(" s | ")
+							.append(eventId).append("\n");
+				}
+
+				if (duration > 600) {
+					warningCount++;
+					sb.append("[WARNING] Duration too long (>600 s) | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(duration).append(" s | ")
+							.append(eventId).append("\n");
+				}
+				
+				if (Double.isNaN(endTag.maxAbsAmplitude)) {
+					warningCount++;
+					sb.append("[WARNING] Missing max amplitude | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(eventId).append("\n");
+				}
+
+				if (Double.isNaN(endTag.peakToPeakAmplitude)) {
+					warningCount++;
+					sb.append("[WARNING] Missing peak-to-peak amplitude | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(eventId).append("\n");
+				}
+
+				if (Double.isNaN(endTag.dominantFrequencyHz)) {
+					warningCount++;
+					sb.append("[WARNING] Missing dominant frequency | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(eventId).append("\n");
+				}
+
+				if (!Double.isNaN(endTag.dominantFrequencyHz)
+						&& endTag.dominantFrequencyHz <= 0) {
+					warningCount++;
+					sb.append("[WARNING] Invalid dominant frequency | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(endTag.dominantFrequencyHz).append(" Hz | ")
+							.append(eventId).append("\n");
+				}
+			}
+		}
+
+		if (warningCount == 0) {
+			return "Validation complete.\nNo issues found.\n\nTotal events: "
+					+ eventsById.size()
+					+ "\nTotal tags: "
+					+ tags.size();
+		}
+
+		return "Validation complete.\n"
+				+ "Total events: " + eventsById.size() + "\n"
+				+ "Total tags: " + tags.size() + "\n"
+				+ "Warnings: " + warningCount + "\n\n"
+				+ sb.toString();
+	}
+
+
+	private void loadTagsFromFile(File file, ArrayList<TagData> tags) {
+
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(file));
+			String line;
+
+			while ((line = br.readLine()) != null) {
+
+				line = line.trim();
+
+				if (line.length() == 0) {
+					continue;
+				}
+
+				if (line.toLowerCase().startsWith("time,")) {
+					continue;
+				}
+
+				try {
+					TagData tag = new TagData(line);
+
+					if (!containsTag(tags, tag)) {
+						tags.add(tag);
+					}
+
+				} catch (Exception ex) {
+					System.err.println(
+							"Skipping bad tagger line in "
+							+ file.getAbsolutePath()
+							+ ": "
+							+ line);
+				}
+			}
+
+			br.close();
+
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					ex.getMessage(),
+					"Error reading tagger file",
+					JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private boolean containsTag(ArrayList<TagData> tags, TagData newTag) {
+
+		for (TagData tag : tags) {
+			if (tag.channel.equals(newTag.channel)
+					&& tag.eventId.equals(newTag.eventId)
+					&& tag.phase.equals(newTag.phase)
+					&& Math.abs(tag.startTime - newTag.startTime) < 0.001) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private void rebuildCatalogFromTags(ArrayList<TagData> tags) {
+
+		Map<String, ArrayList<String>> linesByDayAll =
+				new LinkedHashMap<String, ArrayList<String>>();
+
+		Map<String, Map<String, ArrayList<String>>> linesByDayStation =
+				new LinkedHashMap<String, Map<String, ArrayList<String>>>();
+
+		Map<String, ArrayList<TagData>> eventsById =
+				new LinkedHashMap<String, ArrayList<TagData>>();
+
+		for (TagData tag : tags) {
+
+			if (tag.eventId == null || tag.eventId.length() == 0) {
+				continue;
+			}
+
+			ArrayList<TagData> eventTags = eventsById.get(tag.eventId);
+
+			if (eventTags == null) {
+				eventTags = new ArrayList<TagData>();
+				eventsById.put(tag.eventId, eventTags);
+			}
+
+			eventTags.add(tag);
+		}
+
+		for (String eventId : eventsById.keySet()) {
+
+			ArrayList<TagData> eventTags = eventsById.get(eventId);
+
+			TagData classTag = null;
+			TagData pTag = null;
+			TagData sTag = null;
+			TagData endTag = null;
+
+			for (TagData tag : eventTags) {
+
+				if (!tag.isPhasePick()) {
+					classTag = tag;
+				}
+
+				if (tag.isP()) {
+					if (pTag == null || tag.startTime < pTag.startTime) {
+						pTag = tag;
+					}
+				}
+
+				if (tag.isS()) {
+					if (sTag == null || tag.startTime < sTag.startTime) {
+						sTag = tag;
+					}
+				}
+
+				if (tag.isCoda()) {
+					if (endTag == null || tag.startTime > endTag.startTime) {
+						endTag = tag;
+					}
+				}
+			}
+
+			TagData ref =
+					pTag != null ? pTag :
+					classTag != null ? classTag :
+					sTag != null ? sTag :
+					endTag;
+
+			if (ref == null) {
+				continue;
+			}
+
+			String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
+			String station = getStationCode(ref);
+
+			double dominantFrequencyHz =
+					endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
+
+			String line =
+					csv(eventId) + ","
+					+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
+					+ csv(station) + ","
+					+ csv(ref.channel) + ","
+					+ csv(ref.classification) + ","
+					+ csv(pTag == null ? "" : pTag.getTimeString()) + ","
+					+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
+					+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
+					+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
+					+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
+					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
+					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
+					+ csv(doubleString(dominantFrequencyHz)) + ","
+					+ csv(ref.operator) + ","
+					+ csv(ref.note);
+
+			ArrayList<String> allLines = linesByDayAll.get(ymd);
+
+			if (allLines == null) {
+				allLines = new ArrayList<String>();
+				linesByDayAll.put(ymd, allLines);
+			}
+
+			allLines.add(line);
+
+			Map<String, ArrayList<String>> stationMap =
+					linesByDayStation.get(ymd);
+
+			if (stationMap == null) {
+				stationMap = new LinkedHashMap<String, ArrayList<String>>();
+				linesByDayStation.put(ymd, stationMap);
+			}
+
+			ArrayList<String> stationLines = stationMap.get(station);
+
+			if (stationLines == null) {
+				stationLines = new ArrayList<String>();
+				stationMap.put(station, stationLines);
+			}
+
+			stationLines.add(line);
+		}
+
+		try {
+			for (String ymd : linesByDayAll.keySet()) {
+
+				String year = ymd.substring(0, 4);
+
+				File dayCatalogDir = new File(
+						new File(
+								new File(taggerRootDir, "catalog"),
+								year),
+						ymd);
+
+				if (!dayCatalogDir.exists()) {
+					dayCatalogDir.mkdirs();
+				}
+
+				writeCatalogFile(
+						new File(
+								dayCatalogDir,
+								"Swarm_EventCatalog_" + ymd + "_ALL.csv"),
+						linesByDayAll.get(ymd));
+
+				File stationDir = new File(dayCatalogDir, "station");
+
+				if (!stationDir.exists()) {
+					stationDir.mkdirs();
+				}
+
+				Map<String, ArrayList<String>> stationMap =
+						linesByDayStation.get(ymd);
+
+				for (String station : stationMap.keySet()) {
+					writeCatalogFile(
+							new File(
+									stationDir,
+									"Swarm_EventCatalog_" + ymd + "_" + station + ".csv"),
+							stationMap.get(station));
+				}
+			}
+
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					ex.getMessage(),
+					"Error rebuilding catalog",
+					JOptionPane.ERROR_MESSAGE);
+		}
 	}
 
 /**
  * Metode Export Katalog Harian by Day 
  */ 
+
 private void exportEventCatalogByDay() {
+    exportEventCatalogByDay(false);
+}
+
+private void exportEventCatalogByDaySilent() {
+    exportEventCatalogByDay(true);
+}
+ 
+private void exportEventCatalogByDay(boolean silent) {
 
     if (taggerRootDir == null) {
         loadTaggerRootDir();
@@ -1008,14 +2002,8 @@ private void exportEventCatalogByDay() {
         String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
         String station = getStationCode(ref);
 
-        double dominantFrequencyHz = Double.NaN;
-
-        if (pTag != null && endTag != null && endTag.startTime > pTag.startTime) {
-            dominantFrequencyHz =
-                    hvp.calculateDominantFrequencyForWindow(
-                            pTag.startTime,
-                            endTag.startTime);
-        }
+		double dominantFrequencyHz =
+				endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
 
         String line =
                 csv(eventId) + ","
@@ -1102,10 +2090,12 @@ private void exportEventCatalogByDay() {
             }
         }
 
-        JOptionPane.showMessageDialog(
-                hvp,
-                "Event catalog exported by day to:\n"
-                + new File(taggerRootDir, "catalog").getAbsolutePath());
+		if (!silent) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Event catalog exported by day to:\n"
+					+ new File(taggerRootDir, "catalog").getAbsolutePath());
+		}
 
     } catch (IOException ex) {
 
@@ -1184,18 +2174,20 @@ private void exportEventCatalogByDay() {
         }
     }
 
-    private void repaintPanels() {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                hvp.repaint();
+	private void repaintPanels() {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				hvp.invalidate();
+				hvp.repaint();
 
-                WaveViewPanel wvp = hvp.getInsetPanel();
-                if (wvp != null) {
-                    wvp.repaint();
-                }
-            }
-        });
-    }
+				WaveViewPanel wvp = hvp.getInsetPanel();
+				if (wvp != null) {
+					wvp.invalidate();
+					wvp.repaint();
+				}
+			}
+		});
+	}
 
     public double getJ2k() {
         return j2k;

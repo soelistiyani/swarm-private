@@ -139,6 +139,10 @@ public class TagData implements Comparator<TagData> {
 		if (data.length > 13 && data[13].trim().length() > 0) {
 			peakToPeakAmplitude = Double.parseDouble(data[13].trim());
 		}
+		
+		if (data.length > 14 && data[14] != null && data[14].trim().length() > 0) {
+			dominantFrequencyHz = Double.parseDouble(data[14].trim());
+		}
 
 		if (eventId == null || eventId.length() == 0) {
 			eventId = makeEventId(channel, startTime);
