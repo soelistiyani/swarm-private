@@ -1190,16 +1190,29 @@ public class TagMenu extends JPopupMenu {
 
 		catalogMenu.add(rebuildDateRange);
 
-		JMenuItem validateCatalog =
-				new JMenuItem("Validate Catalog");
+		catalogMenu.addSeparator();
 
-		validateCatalog.addActionListener(new ActionListener() {
+		JMenuItem validateCurrentDay =
+				new JMenuItem("Validate Current Day");
+
+		validateCurrentDay.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				validateCatalog();
+				validateCurrentDay();
 			}
 		});
 
-		catalogMenu.add(validateCatalog);
+		catalogMenu.add(validateCurrentDay);
+
+		JMenuItem validateDateRange =
+				new JMenuItem("Validate Date Range");
+
+		validateDateRange.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				validateDateRange();
+			}
+		});
+
+		catalogMenu.add(validateDateRange);
 
 		this.add(catalogMenu);
 	}
@@ -1412,46 +1425,100 @@ public class TagMenu extends JPopupMenu {
 	}
 
 
-	private void validateCatalog() {
+	private void validateCurrentDay() {
 
-		if (taggerRootDir == null) {
-			loadTaggerRootDir();
-		}
+		String ymd = formatJ2k(j2k, "yyyyMMdd");
 
-		File taggerDir = new File(taggerRootDir, "tagger");
+		ArrayList<TagData> tags = loadTagsForDay(ymd);
 
-		if (!taggerDir.exists() || !taggerDir.isDirectory()) {
-			JOptionPane.showMessageDialog(
-					hvp,
-					"Tagger folder not found:\n" + taggerDir.getAbsolutePath(),
-					"Validate Catalog",
-					JOptionPane.WARNING_MESSAGE);
+		String report =
+				"Validation Date: " + ymd + "\n\n"
+				+ validateTags(tags);
+
+		showValidationReport(report, "Validate Current Day");
+	}
+
+	private void validateDateRange() {
+
+		String start =
+				JOptionPane.showInputDialog(
+						hvp,
+						"Start date (YYYYMMDD):",
+						formatJ2k(j2k, "yyyyMMdd"));
+
+		if (start == null || start.trim().length() == 0) {
 			return;
 		}
 
-		ArrayList<File> csvFiles = new ArrayList<File>();
-		collectTaggerCsvFiles(taggerDir, csvFiles);
+		String end =
+				JOptionPane.showInputDialog(
+						hvp,
+						"End date (YYYYMMDD):",
+						start);
 
-		ArrayList<TagData> allTags = new ArrayList<TagData>();
-
-		for (File csvFile : csvFiles) {
-			loadTagsFromFile(csvFile, allTags);
+		if (end == null || end.trim().length() == 0) {
+			return;
 		}
 
-		String report = validateTags(allTags);
+		start = start.trim();
+		end = end.trim();
 
-		JTextArea textArea = new JTextArea(report);
-		textArea.setEditable(false);
-		textArea.setLineWrap(false);
+		try {
+			java.text.SimpleDateFormat sdf =
+					new java.text.SimpleDateFormat("yyyyMMdd");
 
-		JScrollPane scrollPane = new JScrollPane(textArea);
-		scrollPane.setPreferredSize(new Dimension(850, 500));
+			sdf.setLenient(false);
 
-		JOptionPane.showMessageDialog(
-				hvp,
-				scrollPane,
-				"Validate Catalog",
-				JOptionPane.INFORMATION_MESSAGE);
+			java.util.Date startDate = sdf.parse(start);
+			java.util.Date endDate = sdf.parse(end);
+
+			if (endDate.before(startDate)) {
+				JOptionPane.showMessageDialog(
+						hvp,
+						"End date must be after start date.",
+						"Invalid Date Range",
+						JOptionPane.WARNING_MESSAGE);
+				return;
+			}
+
+			ArrayList<TagData> allTags = new ArrayList<TagData>();
+
+			java.util.Calendar cal = java.util.Calendar.getInstance();
+			cal.setTime(startDate);
+
+			int count = 0;
+
+			while (!cal.getTime().after(endDate)) {
+
+				String ymd = sdf.format(cal.getTime());
+
+				ArrayList<TagData> dayTags = loadTagsForDay(ymd);
+				allTags.addAll(dayTags);
+
+				count++;
+
+				cal.add(java.util.Calendar.DATE, 1);
+			}
+
+			String report =
+					"Validation Date Range: "
+					+ start
+					+ " to "
+					+ end
+					+ "\nDays checked: "
+					+ count
+					+ "\n\n"
+					+ validateTags(allTags);
+
+			showValidationReport(report, "Validate Date Range");
+
+		} catch (Exception ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					ex.getMessage(),
+					"Invalid Date",
+					JOptionPane.ERROR_MESSAGE);
+		}
 	}
 
 	private String validateTags(ArrayList<TagData> tags) {
@@ -1678,6 +1745,22 @@ public class TagMenu extends JPopupMenu {
 				+ sb.toString();
 	}
 
+	private void showValidationReport(String report, String title) {
+
+		JTextArea textArea = new JTextArea(report);
+		textArea.setEditable(false);
+		textArea.setLineWrap(false);
+
+		JScrollPane scrollPane = new JScrollPane(textArea);
+		scrollPane.setPreferredSize(new Dimension(850, 500));
+
+		JOptionPane.showMessageDialog(
+				hvp,
+				scrollPane,
+				title,
+				JOptionPane.INFORMATION_MESSAGE);
+	}
+
 
 	private void loadTagsFromFile(File file, ArrayList<TagData> tags) {
 
@@ -1723,6 +1806,38 @@ public class TagMenu extends JPopupMenu {
 					JOptionPane.ERROR_MESSAGE);
 		}
 	}
+
+	private ArrayList<TagData> loadTagsForDay(String ymd) {
+
+		ArrayList<TagData> tags = new ArrayList<TagData>();
+
+		if (taggerRootDir == null) {
+			loadTaggerRootDir();
+		}
+
+		String year = ymd.substring(0, 4);
+
+		File dayTaggerDir =
+				new File(
+						new File(
+								new File(taggerRootDir, "tagger"),
+								year),
+						ymd);
+
+		if (!dayTaggerDir.exists() || !dayTaggerDir.isDirectory()) {
+			return tags;
+		}
+
+		ArrayList<File> csvFiles = new ArrayList<File>();
+		collectTaggerCsvFiles(dayTaggerDir, csvFiles);
+
+		for (File csvFile : csvFiles) {
+			loadTagsFromFile(csvFile, tags);
+		}
+
+		return tags;
+	}
+
 
 	private boolean containsTag(ArrayList<TagData> tags, TagData newTag) {
 

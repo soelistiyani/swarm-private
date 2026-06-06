@@ -76,7 +76,20 @@ public class CatalogStatisticsEngine {
 			System.out.println("[CatalogStatisticsEngine] Reading: "
 				+ catalogFile.getAbsolutePath());
 
-			allEvents.addAll(readCatalog(catalogFile));
+		List<CatalogEvent> dayEvents = readCatalog(catalogFile);
+
+		for (CatalogEvent event : dayEvents) {
+
+			if (event.time == null) {
+				continue;
+			}
+
+			if (event.time.isBefore(startUtc) || event.time.isAfter(endUtc)) {
+				continue;
+			}
+
+			allEvents.add(event);
+		}
 		}
 
 			date = date.plusDays(1);

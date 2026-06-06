@@ -580,6 +580,9 @@ public class SeismicityStatisticsDialog extends JDialog {
 				typeCombo.addItem(type);
 			}
 
+			stationCombo.setSelectedItem("ALL");
+			typeCombo.setSelectedItem("ALL");
+
 			if (catalogEvents.isEmpty()) {
 
 				statusLabel.setText(
@@ -719,6 +722,24 @@ public class SeismicityStatisticsDialog extends JDialog {
 			String type =
 				(String) typeCombo.getSelectedItem();
 
+			System.out.println(
+				"Generate filter: station=" + station
+				+ ", type=" + type
+			);
+
+
+			System.out.println(
+				"Generate filter: station="
+				+ station
+				+ ", type="
+				+ type
+			);
+
+			System.out.println(
+				"Loaded events="
+				+ catalogEvents.size()
+			);
+
 			Map<String, EventStatistics> stats =
 				CatalogStatisticsEngine.calculate(
 					catalogEvents,
@@ -733,6 +754,16 @@ public class SeismicityStatisticsDialog extends JDialog {
 			for (EventStatistics stat : stats.values()) {
 				tableModel.addRow(stat.toTableRow());
 			}
+
+			statusLabel.setText(
+				"Generated "
+				+ stats.size()
+				+ " event types from "
+				+ catalogEvents.size()
+				+ " loaded events."
+			);
+
+			statusLabel.setForeground(new Color(0, 128, 0));
 
 			if (stats.isEmpty()) {
 				JOptionPane.showMessageDialog(
