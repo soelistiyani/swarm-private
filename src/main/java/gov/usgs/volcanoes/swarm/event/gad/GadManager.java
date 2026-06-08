@@ -100,8 +100,8 @@ public class GadManager {
           Math.cos(Math.toRadians(
               summit.latitude)));
 
-      result.depthKm =
-          Math.abs(result.z);
+      result.depthKm = -result.z;
+	  result.elevationRelativeKm = result.z;
 	  
 	  appendHypocenterCsv();
     }
@@ -488,10 +488,8 @@ public class GadManager {
 		  new FileWriter(hypocenterCsvFile, true)) {
 
 		if (writeHeader) {
-
 		  fw.write(
-			  "time,latitude,longitude,depth_km,rms,"
-			  + "x_km,y_km,z_km\n");
+			"time,latitude,longitude,depth_km,elevation_relative_km,rms,x_km,y_km,z_km\n");
 		}
 
 		fw.write(String.format(
@@ -544,6 +542,7 @@ public class GadManager {
     public Double latitude;
     public Double longitude;
     public Double depthKm;
+	public Double elevationRelativeKm;
 	
 	public String originTime;
   }
