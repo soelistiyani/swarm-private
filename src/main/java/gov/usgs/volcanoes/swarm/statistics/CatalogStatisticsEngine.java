@@ -20,7 +20,6 @@ public class CatalogStatisticsEngine {
 		DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
 	};
 
-
 	public static List<CatalogEvent> readCatalogRange(
 			File catalogRoot,
 			LocalDateTime startUtc,
@@ -97,7 +96,6 @@ public class CatalogStatisticsEngine {
 
 		return allEvents;
 	}
-
 
     public static List<CatalogEvent> readCatalog(File file) throws IOException {
 
@@ -185,7 +183,6 @@ public class CatalogStatisticsEngine {
 
 		return ZoneId.of("Asia/Jakarta"); // default WIB
 	}
-
 
     public static Map<String, EventStatistics> calculate(
             List<CatalogEvent> events,

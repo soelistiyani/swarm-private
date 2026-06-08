@@ -151,13 +151,13 @@ public class SeismicityStatisticsDialog extends JDialog {
 		}
 
 		startYearBox.setSelectedItem("2026");
-		startMonthBox.setSelectedItem("05");
+		startMonthBox.setSelectedItem("01");
 		startDayBox.setSelectedItem("01");
 		startHourBox.setSelectedItem("00");
 		startMinuteBox.setSelectedItem("00");
 
 		endYearBox.setSelectedItem("2026");
-		endMonthBox.setSelectedItem("05");
+		endMonthBox.setSelectedItem("01");
 		endDayBox.setSelectedItem("01");
 		endHourBox.setSelectedItem("23");
 		endMinuteBox.setSelectedItem("59");

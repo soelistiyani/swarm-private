@@ -23,7 +23,9 @@ import java.awt.GridLayout;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
+import java.io.BufferedReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,6 +59,7 @@ import javax.swing.event.MenuListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.xml.parsers.ParserConfigurationException;
 import org.xml.sax.SAXException;
+import gov.usgs.volcanoes.swarm.event.CatalogToolsMenu;
 
 
 /**
@@ -774,6 +777,14 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
 
 		JMenu toolsMenu = new JMenu("Tools");
 
+		File taggerRootDir = loadTaggerRootDirForCatalogTools();
+
+		CatalogToolsMenu catalogToolsMenu =
+				new CatalogToolsMenu(null, taggerRootDir);
+
+		toolsMenu.add(catalogToolsMenu.getValidateCatalogMenu());
+		toolsMenu.add(catalogToolsMenu.getRebuildCatalogMenu());
+
 		JMenuItem seismicityStatsItem =
 			new JMenuItem("Seismicity Statistics");
 
@@ -899,4 +910,40 @@ public class SwarmMenu extends JMenuBar implements InternalFrameListener {
     windows.remove(f);
     windowMenu.remove(mi);
   }
+  
+	private File loadTaggerRootDirForCatalogTools() {
+
+		File taggerRootDir = null;
+
+		File config = new File("TaggerDirectory.config");
+
+		if (config.exists()) {
+			try {
+				BufferedReader br = new BufferedReader(new FileReader(config));
+				String path = br.readLine();
+				br.close();
+
+				if (path != null && path.trim().length() > 0) {
+					taggerRootDir = new File(path.trim());
+				}
+
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+
+		if (taggerRootDir == null) {
+			taggerRootDir =
+					new File(
+							System.getProperty("user.home"),
+							"SwarmTags");
+		}
+
+		if (!taggerRootDir.exists()) {
+			taggerRootDir.mkdirs();
+		}
+
+		return taggerRootDir;
+	}
+  
 }
