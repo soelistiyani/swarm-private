@@ -891,17 +891,17 @@ public void calculateAmplitudeForEvent(final String eventId) {
             return null;
         }
 
-        public void finished() {
+		public void finished() {
 
-            codaPick.durationSec = durationSec;
-            codaPick.maxAbsAmplitude = maxAbsAmplitude;
-            codaPick.maxAbsTime = maxAbsTime;
-            codaPick.peakToPeakAmplitude = peakToPeakAmplitude;
+			codaPick.durationSec = durationSec;
+			codaPick.maxAbsAmplitude = maxAbsAmplitude;
+			codaPick.maxAbsTime = maxAbsTime;
+			codaPick.peakToPeakAmplitude = peakToPeakAmplitude;
 
-            getTagMenu().write();
+			getTagMenu().onAmplitudeCalculationFinished(eventId);
 
-            repaint();
-        }
+			repaint();
+		}
 
 		private void calculateAmplitudeStats(
 				Wave wave,
@@ -1118,86 +1118,86 @@ public void calculateAmplitudeForEvent(final String eventId) {
     }
   }
 
-private void drawPickedDuration(Graphics2D g2, double t1, double t2, Color color) {
+	private void drawPickedDuration(Graphics2D g2, double t1, double t2, Color color) {
 
-    if (Double.isNaN(t1) || Double.isNaN(t2) || t2 <= t1) {
-        return;
-    }
+		if (Double.isNaN(t1) || Double.isNaN(t2) || t2 <= t1) {
+			return;
+		}
 
-    if (translation == null) {
-        return;
-    }
+		if (translation == null) {
+			return;
+		}
 
-    double graphLeft = translation[GRAPH_LEFT];
-    double graphRight = translation[GRAPH_RIGHT];
-    double rowHeight = translation[ROW_HEIGHT];
-    double graphY = translation[GRAPH_Y];
+		double graphLeft = translation[GRAPH_LEFT];
+		double graphRight = translation[GRAPH_RIGHT];
+		double rowHeight = translation[ROW_HEIGHT];
+		double graphY = translation[GRAPH_Y];
 
-    double minTime = translation[4];
-    double timeChunk = translation[6];
+		double minTime = translation[4];
+		double timeChunk = translation[6];
 
-    int firstRow = getHelicorderRowForTime(t1, minTime, timeChunk);
-    int lastRow = getHelicorderRowForTime(t2, minTime, timeChunk);
+		int firstRow = getHelicorderRowForTime(t1, minTime, timeChunk);
+		int lastRow = getHelicorderRowForTime(t2, minTime, timeChunk);
 
-    int rowMin = Math.max(0, Math.min(firstRow, lastRow));
-    int rowMax = Math.min(heliRenderer.getNumRows() - 1, Math.max(firstRow, lastRow));
+		int rowMin = Math.max(0, Math.min(firstRow, lastRow));
+		int rowMax = Math.min(heliRenderer.getNumRows() - 1, Math.max(firstRow, lastRow));
 
-    for (int row = rowMin; row <= rowMax; row++) {
+		for (int row = rowMin; row <= rowMax; row++) {
 
-        double rowStart = minTime + row * timeChunk;
-        double rowEnd = rowStart + timeChunk;
+			double rowStart = minTime + row * timeChunk;
+			double rowEnd = rowStart + timeChunk;
 
-        double segStart = Math.max(t1, rowStart);
-        double segEnd = Math.min(t2, rowEnd);
+			double segStart = Math.max(t1, rowStart);
+			double segEnd = Math.min(t2, rowEnd);
 
-        if (segEnd <= segStart) {
-            continue;
-        }
+			if (segEnd <= segStart) {
+				continue;
+			}
 
-        int x1 = (int) Math.round(graphLeft + (segStart - rowStart) / translation[PIXEL_TIME_SPAN]);
-        int x2 = (int) Math.round(graphLeft + (segEnd - rowStart) / translation[PIXEL_TIME_SPAN]);
+			int x1 = (int) Math.round(graphLeft + (segStart - rowStart) / translation[PIXEL_TIME_SPAN]);
+			int x2 = (int) Math.round(graphLeft + (segEnd - rowStart) / translation[PIXEL_TIME_SPAN]);
 
-        int x = Math.max((int) graphLeft, Math.min(x1, x2));
-        int w = Math.abs(x2 - x1);
+			int x = Math.max((int) graphLeft, Math.min(x1, x2));
+			int w = Math.abs(x2 - x1);
 
-        if (x + w > graphRight) {
-            w = (int) graphRight - x;
-        }
+			if (x + w > graphRight) {
+				w = (int) graphRight - x;
+			}
 
-        if (w <= 0) {
-            continue;
-        }
+			if (w <= 0) {
+				continue;
+			}
 
-        int y = (int) Math.round(graphY + row * rowHeight);
+			int y = (int) Math.round(graphY + row * rowHeight);
 
-        /*
-         * Full row block. Kalau terlalu tebal, ubah h/y seperti komentar bawah.
-         */
-        int h = Math.max(4, (int) Math.round(rowHeight));
+			/*
+			 * Full row block. Kalau terlalu tebal, ubah h/y seperti komentar bawah.
+			 */
+			int h = Math.max(4, (int) Math.round(rowHeight));
 
-        /*
-         * Alternatif band tipis:
-         * int h = Math.max(4, (int) Math.round(rowHeight * 0.35));
-         * y = (int) Math.round(graphY + row * rowHeight + rowHeight * 0.32);
-         */
+			/*
+			 * Alternatif band tipis:
+			 * int h = Math.max(4, (int) Math.round(rowHeight * 0.35));
+			 * y = (int) Math.round(graphY + row * rowHeight + rowHeight * 0.32);
+			 */
 
-		g2.setColor(new Color(
-				color.getRed(),
-				color.getGreen(),
-				color.getBlue(),
-				180));
-		g2.fillRect(x, y, w, h);
-    }
-}
+			g2.setColor(new Color(
+					color.getRed(),
+					color.getGreen(),
+					color.getBlue(),
+					180));
+			g2.fillRect(x, y, w, h);
+		}
+	}
 
-private int getHelicorderRowForTime(double t, double minTime, double timeChunk) {
+	private int getHelicorderRowForTime(double t, double minTime, double timeChunk) {
 
-    if (timeChunk <= 0) {
-        return -1;
-    }
+		if (timeChunk <= 0) {
+			return -1;
+		}
 
-    return (int) Math.floor((t - minTime) / timeChunk);
-}
+		return (int) Math.floor((t - minTime) / timeChunk);
+	}
 
 private void drawPhaseLabel(Graphics2D g2, TagData tag) {
     if (Double.isNaN(tag.startTime)) {

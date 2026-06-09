@@ -190,9 +190,9 @@ protected void createUi() {
   builder.appendSeparator("Hypocenter Solver");
 
   solverHypo71 = new JRadioButton("Hypo71");
-  solverHypo71.setSelected(true);
-
+  
   solverGad = new JRadioButton("GAD");
+  solverGad.setSelected(true);
 
   ButtonGroup solverGroup = new ButtonGroup();
   solverGroup.add(solverHypo71);

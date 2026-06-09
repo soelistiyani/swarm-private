@@ -801,12 +801,28 @@ public class TagMenu extends JPopupMenu {
 		String eventId = currentEventId;
 
 		if (eventId == null || eventId.trim().length() == 0) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Please select Event Classification first.",
+					"No Active Event",
+					JOptionPane.WARNING_MESSAGE);
+			return;
+		}
 
-			eventId = TagData.makeEventId(
-					hvp.getSettings().channel,
-					j2k);
+		if ("S".equalsIgnoreCase(phase)
+				|| "END".equalsIgnoreCase(phase)) {
 
-			currentEventId = eventId;
+			TagData pTag = findPhaseTag(eventId, "P");
+
+			if (pTag == null) {
+				JOptionPane.showMessageDialog(
+						hvp,
+						"Please pick P phase first before picking "
+								+ phase + ".",
+						"Missing P Pick",
+						JOptionPane.WARNING_MESSAGE);
+				return;
+			}
 		}
 
 		String classification = findClassificationForEvent(eventId);
@@ -823,35 +839,58 @@ public class TagMenu extends JPopupMenu {
 				operatorName,
 				lastNote);
 
-//		hvp.getTagData().add(tag);
 		replaceSamePhasePick(tag);
 
 		if ("END".equalsIgnoreCase(phase)) {
 
-			hvp.calculateAmplitudeForEvent(eventId);
-
+			TagData endTag = findPhaseTag(eventId, "END");
 			TagData pTag = findPhaseTag(eventId, "P");
 
-			if (pTag != null && tag.startTime > pTag.startTime) {
-				tag.dominantFrequencyHz =
+			if (endTag == null || pTag == null) {
+				return;
+			}
+
+			/*
+			 * Calculate
+			 * amplitude
+			 * after
+			 * END
+			 * is
+			 * already
+			 * stored
+			 * in
+			 * tagData.
+			 */
+			hvp.calculateAmplitudeForEvent(eventId);
+
+			/*
+			 * Re-fetch
+			 * END
+			 * tag
+			 * after
+			 * amplitude
+			 * calculation.
+			 */
+			endTag = findPhaseTag(eventId, "END");
+
+			if (endTag != null && pTag != null && endTag.startTime > pTag.startTime) {
+				endTag.dominantFrequencyHz =
 						hvp.calculateDominantFrequencyForWindow(
 								pTag.startTime,
-								tag.startTime);
+								endTag.startTime);
 			}
 
 			write();
 
-			CatalogToolsMenu.exportEventCatalogByDaySilent(hvp, taggerRootDir);
-
 			setStatus(
-				"Tagger saved | Catalog updated | "
-				+ activeFileYmd
-			);
+					"Tagger saved | Catalog updated | "
+					+ activeFileYmd);
+
+			currentEventId = "";
+
+			repaintPanels();
+			return;
 		}
-
-		repaintPanels();
-
-		write();
 	}
 	
 	private void replaceSamePhasePick(TagData newTag) {
@@ -942,6 +981,21 @@ public class TagMenu extends JPopupMenu {
 
         return classification;
     }
+
+	public void onAmplitudeCalculationFinished(String eventId) {
+
+		write();
+
+		CatalogToolsMenu.rebuildCatalogForDaySilent(
+				hvp,
+				taggerRootDir,
+				activeFileYmd);
+
+		setStatus(
+				"Tagger saved | Catalog updated | "
+				+ activeFileYmd);
+	}
+
 
 	private void createDeletePickMenu() {
 
@@ -1186,7 +1240,11 @@ public class TagMenu extends JPopupMenu {
 	}
 
 	public File getTaggerRootDir() {
-    return taggerRootDir;
+		return taggerRootDir;
+	}
+
+	public String getActiveFileYmd() {
+		return activeFileYmd;
 	}
 
     public double getJ2k() {

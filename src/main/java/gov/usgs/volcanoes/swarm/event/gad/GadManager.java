@@ -48,7 +48,7 @@ public class GadManager {
   hypocenterCsvFile = new File(gadDir, "hypocenter.csv");
   }
   
-  
+ 
   public boolean calculateFromClipboard()
       throws IOException, InterruptedException {
 
@@ -100,8 +100,12 @@ public class GadManager {
           Math.cos(Math.toRadians(
               summit.latitude)));
 
-      result.depthKm = -result.z;
-	  result.elevationRelativeKm = result.z;
+		// Nilai asli GAD (referensi MSL)
+		result.elevationRelativeKm = result.z;
+
+		// Kedalaman relatif terhadap puncak
+		result.depthKm =
+			summit.elevationKm + result.z;
 	  
 	  appendHypocenterCsv();
     }
@@ -488,20 +492,28 @@ public class GadManager {
 		  new FileWriter(hypocenterCsvFile, true)) {
 
 		if (writeHeader) {
-		  fw.write(
-			"time,latitude,longitude,depth_km,elevation_relative_km,rms,x_km,y_km,z_km\n");
+			
+		fw.write(
+			"time,latitude,longitude,"
+			+ "depth_below_summit_km,"
+			+ "elevation_msl_km,"
+			+ "rms,"
+			+ "x_km,y_km,z_km\n");
+			
 		}
 
 		fw.write(String.format(
 			Locale.US,
-			"%s,%.6f,%.6f,%.3f,%.3f,"
+			"%s,%.6f,%.6f,%.3f,%.3f,%.3f,"
 			+ "%.3f,%.3f,%.3f%n",
 
 			result.originTime,
-
 			result.latitude,
 			result.longitude,
+			
 			result.depthKm,
+			result.elevationRelativeKm,
+			
 			result.rms,
 			result.x,
 			result.y,
@@ -541,8 +553,8 @@ public class GadManager {
 	
     public Double latitude;
     public Double longitude;
-    public Double depthKm;
-	public Double elevationRelativeKm;
+	public Double depthKm;              // depth below summit
+	public Double elevationRelativeKm; // elevasi terhadap MSL (nilai Z asli)
 	
 	public String originTime;
   }

@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -592,13 +594,52 @@ public class SeismicityStatisticsDialog extends JDialog {
 
 			} else {
 
-				statusLabel.setText(
-					"Loaded " + catalogEvents.size()
-					+ " events from selected time range."
-				);
-				statusLabel.setForeground(new Color(0, 128, 0));
+				Set<String> stations = new TreeSet<String>();
+
+				for (CatalogEvent e : catalogEvents) {
+
+					if (e.station != null
+							&& e.station.trim().length() > 0) {
+
+						stations.add(e.station.trim());
+					}
+				}
+
+				int eventCount = catalogEvents.size();
+				int stationCount = stations.size();
+
+				String stationList = "";
+
+				if (stationCount <= 5) {
+
+					StringBuilder sb = new StringBuilder();
+
+					for (String sta : stations) {
+
+						if (sb.length() > 0) {
+							sb.append(", ");
+						}
+
+						sb.append(sta);
+					}
+
+					stationList = " (" + sb.toString() + ")";
 			}
 
+			statusLabel.setText(
+				"Loaded "
+				+ eventCount
+				+ " events from "
+				+ stationCount
+				+ " station"
+				+ (stationCount == 1 ? "" : "s")
+				+ stationList
+				+ " during selected time range"
+			);
+
+			statusLabel.setForeground(new Color(0, 128, 0));
+		}
+		
 		} catch (Exception ex) {
 
 			JOptionPane.showMessageDialog(
@@ -608,6 +649,7 @@ public class SeismicityStatisticsDialog extends JDialog {
 				JOptionPane.ERROR_MESSAGE
 			);
 		}
+		
 	}
 
 	private void updateTimeRangeFromCatalog() {

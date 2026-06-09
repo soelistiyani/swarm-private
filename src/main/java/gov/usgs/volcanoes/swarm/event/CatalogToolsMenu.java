@@ -859,6 +859,9 @@ public class CatalogToolsMenu {
 			double dominantFrequencyHz =
 					endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
 
+			if (endTag != null) {
+			}
+
 			String line =
 					csv(eventId) + ","
 					+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
@@ -956,6 +959,25 @@ public class CatalogToolsMenu {
 			File taggerRootDir) {
 
 		exportEventCatalogByDay(hvp, taggerRootDir, true);
+	}
+
+	public static void rebuildCatalogForDaySilent(
+			HelicorderViewPanel hvp,
+			File taggerRootDir,
+			String ymd) {
+
+		if (hvp == null || taggerRootDir == null) {
+			return;
+		}
+
+		if (ymd == null || ymd.length() == 0) {
+			return;
+		}
+
+		CatalogToolsMenu tools =
+				new CatalogToolsMenu(hvp, taggerRootDir);
+
+		tools.rebuildCatalogForDay(ymd);
 	}
 
 	private static void exportEventCatalogByDay(
@@ -1218,4 +1240,5 @@ public class CatalogToolsMenu {
 
 		return Double.toString(d);
 	}
+
 }
