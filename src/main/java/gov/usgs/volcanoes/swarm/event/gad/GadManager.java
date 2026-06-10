@@ -55,28 +55,30 @@ public class GadManager {
 	
 	private CatalogEvent selectCatalogEventNearPick(long referencePTime) throws IOException {
 
-	  java.util.List<CatalogEvent> candidates =
+		java.util.List<CatalogEvent> candidates =
 		  findCatalogEventsNear(referencePTime, 60000L);
 
-	  if (candidates.size() == 0) {
-		int opt = JOptionPane.showConfirmDialog(
-			null,
-			"Tidak ada event catalog dalam ±60 detik dari P pick.\n"
-				+ "Gunakan eventId dari P pertama?",
-			"Link Event Catalog",
-			JOptionPane.YES_NO_OPTION
-		);
+		if (candidates.size() == 0) {
+		  int opt = JOptionPane.showConfirmDialog(
+			  null,
+			  "Tidak ada event catalog yang cocok dalam ±60 detik dari P pick.\n"
+				  + "GAD tetap dapat dijalankan dengan eventId sementara dari P pertama.\n\n"
+				  + "Lanjutkan Run GAD tanpa link ke Event Catalog?",
+			  "Event Catalog Tidak Ditemukan",
+			  JOptionPane.YES_NO_OPTION,
+			  JOptionPane.WARNING_MESSAGE
+		  );
 
-		if (opt != JOptionPane.YES_OPTION) {
-		  return null;
+		  if (opt != JOptionPane.YES_OPTION) {
+			return null;
+		  }
+
+		  return createEventFromFirstPick(referencePTime);
 		}
 
-		return createEventFromFirstPick(referencePTime);
-	  }
+		Object[] options = new Object[candidates.size()];
 
-	  Object[] options = new Object[candidates.size()];
-
-	  for (int i = 0; i < candidates.size(); i++) {
+		for (int i = 0; i < candidates.size(); i++) {
 		CatalogEvent ev = candidates.get(i);
 
 		double dt =
@@ -92,9 +94,9 @@ public class GadManager {
 			+ ev.station
 			+ " | Δ "
 			+ String.format(Locale.US, "%.1f s", dt);
-	  }
+		}
 
-	  Object selected = JOptionPane.showInputDialog(
+		Object selected = JOptionPane.showInputDialog(
 		  null,
 		  "Pilih event catalog untuk pick Wave Clipboard:",
 		  "Link Event Catalog",
@@ -102,19 +104,19 @@ public class GadManager {
 		  null,
 		  options,
 		  options[0]
-	  );
+		);
 
-	  if (selected == null) {
+		if (selected == null) {
 		return null;
-	  }
+		}
 
-	  for (int i = 0; i < options.length; i++) {
+		for (int i = 0; i < options.length; i++) {
 		if (options[i].equals(selected)) {
 		  return candidates.get(i);
 		}
-	  }
+		}
 
-	  return null;
+		return null;
 	}
 
 	private File catalogRoot = loadCatalogRootFromTaggerConfig();
@@ -434,29 +436,56 @@ public class GadManager {
 
 	private CatalogEvent createEventFromFirstPick(long referencePTime) {
 
-	  SimpleDateFormat idFmt =
-		  new SimpleDateFormat("yyMMddHHmm");
-
-	  idFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-	  java.util.Calendar cal =
-		  java.util.Calendar.getInstance(
-			  TimeZone.getTimeZone("UTC"));
-
-	  cal.setTimeInMillis(referencePTime);
-	  cal.set(java.util.Calendar.SECOND, 0);
-	  cal.set(java.util.Calendar.MILLISECOND, 0);
-
 	  CatalogEvent ev = new CatalogEvent();
 
-	  ev.eventId = idFmt.format(new Date(referencePTime));
-	  ev.gadEventId = ev.eventId;
+	  String refStation = getReferenceStationFromClipboard(referencePTime);
+
+	  ev.gadEventId = makeGadEventId(referencePTime);
+	  ev.eventId = refStation + "_TEMP_" + ev.gadEventId;
 	  ev.eventTime = referencePTime;
-	  ev.baseTime = cal.getTimeInMillis();
-	  ev.station = "";
-	  ev.classification = "UNKNOWN";
+	  ev.baseTime = floorToMinuteUtc(referencePTime);
+	  ev.station = refStation;
+	  ev.classification = "UNLINKED";
 
 	  return ev;
+	}
+
+	private String getReferenceStationFromClipboard(long referencePTime) {
+
+	  for (WaveViewPanel wvp :
+		  WaveClipboardFrame
+			  .getInstance()
+			  .getWaves()) {
+
+		PickData pd = wvp.getPickData();
+
+		Pick pPick = pd.getPick(PickData.P);
+
+		if (pPick == null) {
+		  continue;
+		}
+
+		if (Math.abs(pPick.getTime() - referencePTime) < 1L) {
+		  return sanitizeEventIdPart(wvp.getChannel());
+		}
+	  }
+
+	  return "UNKNOWN";
+	}
+
+	private String sanitizeEventIdPart(String text) {
+
+	  if (text == null) {
+		return "UNKNOWN";
+	  }
+
+	  text = text.trim();
+
+	  if (text.length() == 0) {
+		return "UNKNOWN";
+	  }
+
+	  return text.replaceAll("[^A-Za-z0-9]+", "_");
 	}
 
 	public boolean calculateFromClipboard() throws IOException, InterruptedException {
@@ -472,7 +501,8 @@ public class GadManager {
 		selectCatalogEventNearPick(pickInfo.referencePTime);
 
 	if (selectedEvent == null) {
-	  throw new IOException("Event catalog tidak dipilih.");
+	  resultText = "GAD dibatalkan: event catalog tidak dipilih.";
+	  return false;
 	}
 
 	writeArrivalDat(selectedEvent.gadEventId, selectedEvent.baseTime);
