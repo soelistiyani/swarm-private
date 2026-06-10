@@ -93,6 +93,10 @@ public class CatalogToolsMenu {
 		return sdf.format(new Date());
 	}
 
+	private static String defaultStartYmdUtc() {
+		return "20260101";
+	}
+
 	private void rebuildCatalogForCurrentDay() {
 
 		String ymd =
@@ -133,7 +137,7 @@ public class CatalogToolsMenu {
 				JOptionPane.showInputDialog(
 						hvp,
 						"Start date (YYYYMMDD, in UTC):",
-						formatJ2k(j2k, "yyyyMMdd"));
+						defaultStartYmdUtc());
 
 		if (start == null || start.trim().length() == 0) {
 			return;
@@ -370,7 +374,7 @@ public class CatalogToolsMenu {
 				JOptionPane.showInputDialog(
 						hvp,
 						"Start date (YYYYMMDD, in UTC):",
-						formatJ2k(j2k, "yyyyMMdd"));
+						defaultStartYmdUtc());
 
 		if (start == null || start.trim().length() == 0) {
 			return;

@@ -197,6 +197,8 @@ protected void createUi() {
   ButtonGroup solverGroup = new ButtonGroup();
   solverGroup.add(solverHypo71);
   solverGroup.add(solverGad);
+  
+  gadMgr = new GadManager();
 
   builder.append(solverHypo71);
   builder.nextLine();

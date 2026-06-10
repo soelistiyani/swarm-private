@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.swing.JOptionPane;
 
 public class GadManager {
 
@@ -47,33 +48,459 @@ public class GadManager {
   resultHistoryFile = new File(gadDir, "Result_history.dat");
   hypocenterCsvFile = new File(gadDir, "hypocenter.csv");
   }
-  
  
-  public boolean calculateFromClipboard()
-      throws IOException, InterruptedException {
+	public void setCatalogRoot(String folder) {
+	  catalogRoot = new File(folder);
+	}
+	
+	private CatalogEvent selectCatalogEventNearPick(long referencePTime) throws IOException {
 
-    validateGadFolder();
-    writeArrivalDat();
-    ProcessBuilder pb =
-        new ProcessBuilder(gadExe.getAbsolutePath());
-    pb.directory(gadDir);
-    pb.redirectErrorStream(true);
-    Process p = pb.start();
-    StringBuilder console = new StringBuilder();
+	  java.util.List<CatalogEvent> candidates =
+		  findCatalogEventsNear(referencePTime, 60000L);
 
-    try (BufferedReader br =
-        new BufferedReader(
-            new InputStreamReader(p.getInputStream()))) {
-      String line;
-      while ((line = br.readLine()) != null) {
-        console.append(line)
-            .append(System.lineSeparator());
-      }
-    }
+	  if (candidates.size() == 0) {
+		int opt = JOptionPane.showConfirmDialog(
+			null,
+			"Tidak ada event catalog dalam ±60 detik dari P pick.\n"
+				+ "Gunakan eventId dari P pertama?",
+			"Link Event Catalog",
+			JOptionPane.YES_NO_OPTION
+		);
+
+		if (opt != JOptionPane.YES_OPTION) {
+		  return null;
+		}
+
+		return createEventFromFirstPick(referencePTime);
+	  }
+
+	  Object[] options = new Object[candidates.size()];
+
+	  for (int i = 0; i < candidates.size(); i++) {
+		CatalogEvent ev = candidates.get(i);
+
+		double dt =
+			Math.abs(ev.eventTime - referencePTime) / 1000.0;
+
+		options[i] =
+			ev.eventId
+			+ " | "
+			+ formatUtc(ev.eventTime)
+			+ " | "
+			+ ev.classification
+			+ " | "
+			+ ev.station
+			+ " | Δ "
+			+ String.format(Locale.US, "%.1f s", dt);
+	  }
+
+	  Object selected = JOptionPane.showInputDialog(
+		  null,
+		  "Pilih event catalog untuk pick Wave Clipboard:",
+		  "Link Event Catalog",
+		  JOptionPane.QUESTION_MESSAGE,
+		  null,
+		  options,
+		  options[0]
+	  );
+
+	  if (selected == null) {
+		return null;
+	  }
+
+	  for (int i = 0; i < options.length; i++) {
+		if (options[i].equals(selected)) {
+		  return candidates.get(i);
+		}
+	  }
+
+	  return null;
+	}
+
+	private File catalogRoot = loadCatalogRootFromTaggerConfig();
+	
+	private File loadCatalogRootFromTaggerConfig() {
+
+	  File configFile =
+		  new File(
+			  System.getProperty("user.dir"),
+			  "TaggerDirectory.config"
+		  );
+
+	  if (!configFile.exists()) {
+		return new File(
+			System.getProperty("user.home"),
+			"SwarmTagger" + File.separator + "Catalog"
+		);
+	  }
+
+	  BufferedReader br = null;
+
+	  try {
+		br = new BufferedReader(new FileReader(configFile));
+
+		String line;
+
+		while ((line = br.readLine()) != null) {
+
+		  line = line.trim();
+
+		  if (line.length() == 0 || line.startsWith("#")) {
+			continue;
+		  }
+
+		  File taggerRoot = new File(line);
+
+		  File catalogDir = new File(taggerRoot, "Catalog");
+
+		  if (catalogDir.exists()) {
+			return catalogDir;
+		  }
+
+		  return taggerRoot;
+		}
+
+	  } catch (IOException e) {
+		System.out.println(
+			"GAD failed to read TaggerDirectory.config: "
+			+ e.getMessage()
+		);
+
+	  } finally {
+		if (br != null) {
+		  try {
+			br.close();
+		  } catch (IOException ignored) {
+		  }
+		}
+	  }
+
+	  return new File(
+		  System.getProperty("user.home"),
+		  "SwarmTagger" + File.separator + "Catalog"
+	  );
+	}
+	
+	private java.util.List<CatalogEvent> findCatalogEventsNear(long referenceTime, long toleranceMillis) throws IOException {
+
+	  java.util.List<CatalogEvent> events =
+		  new java.util.ArrayList<CatalogEvent>();
+		  
+	  File catalogFile = getEventCatalogFile(referenceTime);
+
+	  if (!catalogFile.exists()) {
+		return events;
+	  }
+
+	  BufferedReader br =
+		  new BufferedReader(new FileReader(catalogFile));
+
+	  String header = br.readLine();
+
+	  if (header == null) {
+		br.close();
+		return events;
+	  }
+
+	  String[] cols = header.split(",", -1);
+
+	  int eventIdCol = findColumn(cols, "eventId");
+	  int pTimeCol = findAnyColumn(
+	  	cols,
+	  	new String[] {"pTime", "p_time", "ptime", "pickTime"}
+	  );
+
+	  int originTimeCol = findAnyColumn(
+	  	cols,
+	  	new String[] {"originTime", "time", "eventTime", "startTime"}
+	  );
+	  int stationCol = findAnyColumn(
+	      cols,
+	      new String[] {"station", "sta"}
+	  );
+	  int classCol = findAnyColumn(
+	  	cols,
+	  	new String[] {"classification", "type", "eventType", "jenis"}
+	  );
+
+	  String line;
+
+	  while ((line = br.readLine()) != null) {
+
+		String[] v = line.split(",", -1);
+
+		CatalogEvent ev = new CatalogEvent();
+
+		ev.eventId = getCsvValue(v, eventIdCol);
+		ev.station = getCsvValue(v, stationCol);
+		ev.classification = getCsvValue(v, classCol);
+
+		String timeText = getCsvValue(v, pTimeCol);
+
+		if (timeText.length() == 0) {
+		  timeText = getCsvValue(v, originTimeCol);
+		}
+
+		if (ev.eventId.length() == 0 || timeText.length() == 0) {
+		  continue;
+		}
+
+		try {
+		  ev.eventTime = parseCsvTime(timeText);
+		  ev.baseTime = floorToMinuteUtc(ev.eventTime);
+		  ev.gadEventId = makeGadEventId(ev.eventTime);
+		} catch (Exception e) {
+		  continue;
+		}
+
+		long dt = Math.abs(ev.eventTime - referenceTime);
+
+		if (dt <= toleranceMillis) {
+		  events.add(ev);
+		}
+	  }
+
+	  br.close();
+
+	  final long ref = referenceTime;
+
+	  java.util.Collections.sort(
+		  events,
+		  new java.util.Comparator<CatalogEvent>() {
+			public int compare(CatalogEvent a, CatalogEvent b) {
+			  long da = Math.abs(a.eventTime - ref);
+			  long db = Math.abs(b.eventTime - ref);
+
+			  if (da < db) {
+				return -1;
+			  }
+
+			  if (da > db) {
+				return 1;
+			  }
+
+			  return 0;
+			}
+		  }
+	  );
+
+	  return events;
+
+	}
+
+	private String makeGadEventId(long time) {
+
+	  SimpleDateFormat idFmt =
+		  new SimpleDateFormat("yyMMddHHmm");
+
+	  idFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+	  return idFmt.format(new Date(time));
+	}
+
+	private long floorToMinuteUtc(long time) {
+
+	  java.util.Calendar cal =
+		  java.util.Calendar.getInstance(
+			  TimeZone.getTimeZone("UTC"));
+
+	  cal.setTimeInMillis(time);
+	  cal.set(java.util.Calendar.SECOND, 0);
+	  cal.set(java.util.Calendar.MILLISECOND, 0);
+
+	  return cal.getTimeInMillis();
+	}
+	
+	private int findAnyColumn(String[] cols, String[] names) {
+
+	  for (int n = 0; n < names.length; n++) {
+		int idx = findColumn(cols, names[n]);
+		if (idx >= 0) {
+		  return idx;
+		}
+	  }
+
+	  return -1;
+	}
+
+	private File getEventCatalogFile(long time) {
+
+	  java.util.Calendar cal =
+		  java.util.Calendar.getInstance(
+			  TimeZone.getTimeZone("UTC"));
+
+	  cal.setTimeInMillis(time);
+
+	  int year = cal.get(java.util.Calendar.YEAR);
+	  int month = cal.get(java.util.Calendar.MONTH) + 1;
+	  int day = cal.get(java.util.Calendar.DAY_OF_MONTH);
+
+	  String ymd =
+		  String.format(Locale.US, "%04d%02d%02d", year, month, day);
+
+	  return new File(
+		  catalogRoot,
+		  year + File.separator
+			  + ymd + File.separator
+			  + "Swarm_EventCatalog_" + ymd + "_ALL.csv"
+	  );
+	}
+	
+	private int findColumn(String[] cols, String name) {
+
+	  for (int i = 0; i < cols.length; i++) {
+		if (cols[i].trim().equalsIgnoreCase(name)) {
+		  return i;
+		}
+	  }
+
+	  return -1;
+	}
+
+	private String getCsvValue(String[] values, int index) {
+
+	  if (index < 0 || index >= values.length) {
+		return "";
+	  }
+
+	  return values[index].trim();
+	}
+
+	private long parseCsvTime(String text) throws java.text.ParseException {
+
+	text = text.trim();
+
+	if (text.matches("\\d+(\\.\\d+)?")) {
+	  double value = Double.parseDouble(text);
+
+	  if (value > 1000000000000.0) {
+		return (long) value; // epoch milliseconds
+	  }
+
+	  return (long) (value * 1000.0); // epoch seconds
+	}
+
+	  String[] formats = {
+		  "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+		  "yyyy-MM-dd'T'HH:mm:ss'Z'",
+		  "yyyy-MM-dd HH:mm:ss.SSS",
+		  "yyyy-MM-dd HH:mm:ss"
+	  };
+
+	  java.text.ParseException last = null;
+
+	  for (int i = 0; i < formats.length; i++) {
+		try {
+		  SimpleDateFormat fmt =
+			  new SimpleDateFormat(formats[i]);
+
+		  fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+		  return fmt.parse(text).getTime();
+
+		} catch (java.text.ParseException e) {
+		  last = e;
+		}
+	  }
+
+	  throw last;
+	}
+
+	private String formatUtc(long time) {
+
+	  SimpleDateFormat fmt =
+		  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+	  fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+	  return fmt.format(new Date(time));
+	}
+	
+	private long getBaseTimeFromEventId(String eventId) throws java.text.ParseException {
+
+	  String gadEventId = eventId;
+
+	  if (gadEventId.length() > 10) {
+		gadEventId = gadEventId.substring(0, 10);
+	  }
+
+	  SimpleDateFormat fmt =
+		  new SimpleDateFormat("yyMMddHHmm");
+
+	  fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+	  return fmt.parse(gadEventId).getTime();
+	}
+
+	private CatalogEvent createEventFromFirstPick(long referencePTime) {
+
+	  SimpleDateFormat idFmt =
+		  new SimpleDateFormat("yyMMddHHmm");
+
+	  idFmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+	  java.util.Calendar cal =
+		  java.util.Calendar.getInstance(
+			  TimeZone.getTimeZone("UTC"));
+
+	  cal.setTimeInMillis(referencePTime);
+	  cal.set(java.util.Calendar.SECOND, 0);
+	  cal.set(java.util.Calendar.MILLISECOND, 0);
+
+	  CatalogEvent ev = new CatalogEvent();
+
+	  ev.eventId = idFmt.format(new Date(referencePTime));
+	  ev.gadEventId = ev.eventId;
+	  ev.eventTime = referencePTime;
+	  ev.baseTime = cal.getTimeInMillis();
+	  ev.station = "";
+	  ev.classification = "UNKNOWN";
+
+	  return ev;
+	}
+
+	public boolean calculateFromClipboard() throws IOException, InterruptedException {
+
+	validateGadFolder();
+	ClipboardPickInfo pickInfo = getClipboardPickInfo();
+
+	if (pickInfo.nPick < 3) {
+	  throw new IOException("Minimal 3 pick P diperlukan untuk GAD.");
+	}
+
+	CatalogEvent selectedEvent =
+		selectCatalogEventNearPick(pickInfo.referencePTime);
+
+	if (selectedEvent == null) {
+	  throw new IOException("Event catalog tidak dipilih.");
+	}
+
+	writeArrivalDat(selectedEvent.gadEventId, selectedEvent.baseTime);
+	ProcessBuilder pb =
+		new ProcessBuilder(gadExe.getAbsolutePath());
+		
+	pb.directory(gadDir);
+	pb.redirectErrorStream(true);
+	Process p = pb.start();
+	StringBuilder console = new StringBuilder();
+
+	try (BufferedReader br =
+		new BufferedReader(
+			new InputStreamReader(p.getInputStream()))) {
+	  String line;
+	  while ((line = br.readLine()) != null) {
+		console.append(line)
+			.append(System.lineSeparator());
+	  }
+	}
 
 	int code = p.waitFor();
 
 	resultText = console.toString();
+
+	if (resultFile.exists()) {
+	  resultText = readFile(resultFile);
+	}
 
 	try (FileWriter hist = new FileWriter(resultHistoryFile, true)) {
 	  hist.write("====================================\n");
@@ -83,22 +510,27 @@ public class GadManager {
 	}
 
 	result = parseResult(resultText);
+
+	if (result != null) {
+	  result.eventId = selectedEvent.eventId;
+	}
+
 	SummitReference summit = readSummitDat();
 
-    if (result != null
-        && result.x != null
-        && result.y != null
-        && result.z != null) {
+	if (result != null
+		&& result.x != null
+		&& result.y != null
+		&& result.z != null) {
 
-      result.latitude =
-          summit.latitude + result.y / 111.32;
+	  result.latitude =
+		  summit.latitude + result.y / 111.32;
 
-      result.longitude =
-          summit.longitude +
-          result.x /
-          (111.32 *
-          Math.cos(Math.toRadians(
-              summit.latitude)));
+	  result.longitude =
+		  summit.longitude +
+		  result.x /
+		  (111.32 *
+		  Math.cos(Math.toRadians(
+			  summit.latitude)));
 
 		// Nilai asli GAD (referensi MSL)
 		result.elevationRelativeKm = result.z;
@@ -108,27 +540,30 @@ public class GadManager {
 			summit.elevationKm + result.z;
 	  
 	  appendHypocenterCsv();
-    }
+	}
 
-    System.out.println(
-        "GAD WORKDIR = "
-        + gadDir.getAbsolutePath());
+	System.out.println(
+		"GAD WORKDIR = "
+		+ gadDir.getAbsolutePath());
 
-    System.out.println(
-        "GAD EXIT CODE = "
-        + code);
+	System.out.println(
+		"GAD EXIT CODE = "
+		+ code);
 
-    System.out.println(
-        "GAD RESULT EXISTS = "
-        + resultFile.exists());
+	System.out.println(
+		"GAD RESULT FILE = "
+		+ resultFile.getAbsolutePath());
 
-    return resultText != null
-        && resultText.contains(
-            "Travel time residual rms");
-  }
+	System.out.println(
+		"GAD RESULT EXISTS = "
+		+ resultFile.exists());
 
-  private void validateGadFolder()
-      throws IOException {
+	return resultText != null
+		&& resultText.contains(
+			"Travel time residual rms");
+	}
+
+	private void validateGadFolder() throws IOException {
 
 	if (!velocityFile.exists()) {
 	  throw new IOException("velocity.dat tidak ditemukan: " + velocityFile.getAbsolutePath());
@@ -141,21 +576,11 @@ public class GadManager {
 	if (!summitFile.exists()) {
 	  throw new IOException("summit.dat tidak ditemukan: " + summitFile.getAbsolutePath());
 	}
-  }
+	}
 
-	private void writeArrivalDat()
-		throws IOException {
-
-	  SimpleDateFormat idFmt =
-		  new SimpleDateFormat("yyMMddHHmm");
-
-	  idFmt.setTimeZone(
-		  TimeZone.getTimeZone("UTC"));
+	private void writeArrivalDat(String eventId, long eventBaseTime) throws IOException {
 
 	  StringBuilder sb = new StringBuilder();
-
-	  String eventId = null;
-	  long eventBaseTime = 0L;
 
 	  int nPick = 0;
 
@@ -173,30 +598,11 @@ public class GadManager {
 		  continue;
 		}
 
-		if (eventId == null) {
-		  Date firstPickDate =
-			  new Date(pPick.getTime());
-
-		  eventId =
-			  idFmt.format(firstPickDate);
-
-		  java.util.Calendar cal =
-			  java.util.Calendar.getInstance(
-				  TimeZone.getTimeZone("UTC"));
-
-		  cal.setTime(firstPickDate);
-		  cal.set(java.util.Calendar.SECOND, 0);
-		  cal.set(java.util.Calendar.MILLISECOND, 0);
-
-		  eventBaseTime =
-			  cal.getTimeInMillis();
-		}
-
 		String station =
 			extractStationCode(
 				wvp.getChannel());
-				station = normalizeStationForGad(station);
 
+		station = normalizeStationForGad(station);
 
 		double pSec =
 			(pPick.getTime() - eventBaseTime) / 1000.0;
@@ -208,7 +614,9 @@ public class GadManager {
 		String sQuality = "E";
 
 		if (sPick != null) {
-		  sSec = (sPick.getTime() - eventBaseTime) / 1000.0;
+		  sSec =
+			  (sPick.getTime() - eventBaseTime) / 1000.0;
+
 		  sQuality = getPickQuality(sPick);
 
 		  if (sSec < pSec) {
@@ -231,10 +639,10 @@ public class GadManager {
 
 		nPick++;
 	  }
-	  
-		if (nPick < 3) {
-		  throw new IOException("Minimal 3 pick P diperlukan untuk GAD.");
-		}
+
+	  if (nPick < 3) {
+		throw new IOException("Minimal 3 pick P diperlukan untuk GAD.");
+	  }
 
 	  sb.append(System.lineSeparator());
 
@@ -255,7 +663,7 @@ public class GadManager {
 
 		hist.write(
 			new java.util.Date().toString()
-			+ "\n");
+				+ "\n");
 
 		hist.write(sb.toString());
 
@@ -277,21 +685,20 @@ public class GadManager {
 	  return String.format("%-4s", station);
 	}
 
+	private String extractStationCode(
+	  String channelName) {
 
-  private String extractStationCode(
-      String channelName) {
-
-    if (channelName == null) {
-      return "";
-    }
-    channelName = channelName.trim();
-    String[] parts =
-        channelName.split("\\s+");
-    if (parts.length > 0) {
-      return parts[0].trim();
-    }
-    return channelName;
-  }
+	if (channelName == null) {
+	  return "";
+	}
+	channelName = channelName.trim();
+	String[] parts =
+		channelName.split("\\s+");
+	if (parts.length > 0) {
+	  return parts[0].trim();
+	}
+	return channelName;
+	}
 
 	private String getPickPolarity(Pick pick) {
 
@@ -349,82 +756,127 @@ public class GadManager {
 	  return "E";
 	}
 
+	private static class ClipboardPickInfo {
+	  long referencePTime;
+	  int nPick;
+	}
 
-  private SummitReference readSummitDat()
-      throws IOException {
+	private static class CatalogEvent {
+	  String eventId;      // eventId asli dari EventCatalog
+	  String gadEventId;   // eventId pendek untuk Arrival.dat
+	  long eventTime;
+	  long baseTime;
+	  String station;
+	  String classification;
+	}
 
-    File summitFile = new File(gadDir, "summit.dat");
+	private ClipboardPickInfo getClipboardPickInfo() {
 
-    try (BufferedReader br =
-        new BufferedReader(
-            new FileReader(summitFile))) {
-      String line;
+	  ClipboardPickInfo info = new ClipboardPickInfo();
 
-      while ((line = br.readLine()) != null) {
-        line = line.trim();
+	  info.referencePTime = Long.MAX_VALUE;
+	  info.nPick = 0;
 
-        if (line.isEmpty()
-            || line.startsWith("#")) {
-          continue;
-        }
+	  for (WaveViewPanel wvp :
+		  WaveClipboardFrame
+			  .getInstance()
+			  .getWaves()) {
 
-        String[] p = line.split("\\s+");
+		PickData pd = wvp.getPickData();
 
-        SummitReference s =
-            new SummitReference();
-        s.name = p[0];
+		Pick pPick = pd.getPick(PickData.P);
 
-        s.latitude =
-            Double.parseDouble(p[1]);
+		if (pPick == null) {
+		  continue;
+		}
 
-        s.longitude =
-            Double.parseDouble(p[2]);
+		info.nPick++;
 
-        s.elevationKm =
-            Double.parseDouble(p[3]);
+		if (pPick.getTime() < info.referencePTime) {
+		  info.referencePTime = pPick.getTime();
+		}
+	  }
 
-        return s;
-      }
-    }
+	  if (info.referencePTime == Long.MAX_VALUE) {
+		info.referencePTime = 0L;
+	  }
 
-    throw new IOException(
-        "Isi summit.dat tidak valid.");
-  }
+	  return info;
+	}
 
-  private GadResult parseResult(String text) 
-  {
-    GadResult r = new GadResult();
+	private SummitReference readSummitDat() throws IOException {
 
-    r.x = findDouble("\\bX\\s+([-+.0-9]+)", text);
-    r.y = findDouble("\\bY\\s+([-+.0-9]+)", text);
-    r.z = findDouble("\\bZ\\s+([-+.0-9]+)", text);
-    r.t = findDouble("\\bT\\s+([-+.0-9]+)", text);
-	
+	File summitFile = new File(gadDir, "summit.dat");
+
+	try (BufferedReader br =
+		new BufferedReader(
+			new FileReader(summitFile))) {
+	  String line;
+
+	  while ((line = br.readLine()) != null) {
+		line = line.trim();
+
+		if (line.isEmpty()
+			|| line.startsWith("#")) {
+		  continue;
+		}
+
+		String[] p = line.split("\\s+");
+
+		SummitReference s =
+			new SummitReference();
+		s.name = p[0];
+
+		s.latitude =
+			Double.parseDouble(p[1]);
+
+		s.longitude =
+			Double.parseDouble(p[2]);
+
+		s.elevationKm =
+			Double.parseDouble(p[3]);
+
+		return s;
+	  }
+	}
+
+	throw new IOException(
+		"Isi summit.dat tidak valid.");
+	}
+
+	private GadResult parseResult(String text) {
+	GadResult r = new GadResult();
+
+	r.x = findDouble("\\bX\\s+([-+.0-9]+)", text);
+	r.y = findDouble("\\bY\\s+([-+.0-9]+)", text);
+	r.z = findDouble("\\bZ\\s+([-+.0-9]+)", text);
+	r.t = findDouble("\\bT\\s+([-+.0-9]+)", text);
+
 	r.originTime = parseOriginTime(text, r.t);
 
-    r.rms =
-        findDouble(
-            "rms=\\s*([-+.0-9]+)sec",
-            text);
+	r.rms =
+		findDouble(
+			"rms=\\s*([-+.0-9]+)sec",
+			text);
 
-    return r;
-  }
+	return r;
+	}
 
-  private Double findDouble(
-      String regex,
-      String text) {
+	private Double findDouble(
+	  String regex,
+	  String text) {
 
-    Pattern p = Pattern.compile(regex);
+	Pattern p = Pattern.compile(regex);
 
-    Matcher m = p.matcher(text);
+	Matcher m = p.matcher(text);
 
-    if (m.find()) {
-      return Double.parseDouble(
-          m.group(1));
-    }
+	if (m.find()) {
+	  return Double.parseDouble(
+		  m.group(1));
+	}
 
-    return null;
-  }
+	return null;
+	}
 
 	private String parseOriginTime(
 		String text,
@@ -460,30 +912,27 @@ public class GadManager {
 	  return "";
 	}
 
+	private String readFile(File f) throws IOException {
 
-  private String readFile(File f)
-      throws IOException {
+	StringBuilder sb =
+		new StringBuilder();
 
-    StringBuilder sb =
-        new StringBuilder();
+	try (BufferedReader br =
+		new BufferedReader(
+			new FileReader(f))) {
 
-    try (BufferedReader br =
-        new BufferedReader(
-            new FileReader(f))) {
+	  String line;
 
-      String line;
+	  while ((line = br.readLine()) != null) {
+		sb.append(line)
+			.append(System.lineSeparator());
+	  }
+	}
 
-      while ((line = br.readLine()) != null) {
-        sb.append(line)
-            .append(System.lineSeparator());
-      }
-    }
+	return sb.toString();
+	}
 
-    return sb.toString();
-  }
-
-	private void appendHypocenterCsv()
-		throws IOException {
+	private void appendHypocenterCsv() throws IOException {
 
 	  boolean writeHeader =
 		  !hypocenterCsvFile.exists();
@@ -492,29 +941,30 @@ public class GadManager {
 		  new FileWriter(hypocenterCsvFile, true)) {
 
 		if (writeHeader) {
-			
-		fw.write(
-			"time,latitude,longitude,"
-			+ "depth_below_summit_km,"
-			+ "elevation_msl_km,"
-			+ "rms,"
-			+ "x_km,y_km,z_km\n");
-			
+
+		  fw.write(
+			  "eventId,time,latitude,longitude,"
+			  + "depth_below_summit_km,"
+			  + "elevation_msl_km,"
+			  + "rms,t_sec,"
+			  + "x_km,y_km,z_km\n");
 		}
 
 		fw.write(String.format(
 			Locale.US,
-			"%s,%.6f,%.6f,%.3f,%.3f,%.3f,"
+			"%s,%s,%.6f,%.6f,%.3f,%.3f,%.3f,%.3f,"
 			+ "%.3f,%.3f,%.3f%n",
 
+			result.eventId,
 			result.originTime,
 			result.latitude,
 			result.longitude,
-			
+
 			result.depthKm,
 			result.elevationRelativeKm,
-			
+
 			result.rms,
+			result.t,
 			result.x,
 			result.y,
 			result.z
@@ -522,40 +972,40 @@ public class GadManager {
 	  }
 	}
 
+	public String getResultText() {
+	return resultText;
+	}
 
-  public String getResultText() {
-    return resultText;
-  }
+	public GadResult getResult() {
+	return result;
+	}
 
-  public GadResult getResult() {
-    return result;
-  }
+	public File getResultFile() {
+	return resultFile;
+	}
 
-  public File getResultFile() {
-    return resultFile;
-  }
-
-  public static class SummitReference {
+	public static class SummitReference {
 	  
-    public String name;
-    public double latitude;
-    public double longitude;
-    public double elevationKm;
-  }
+	public String name;
+	public double latitude;
+	public double longitude;
+	public double elevationKm;
+	}
 
-  public static class GadResult {
+	public static class GadResult {
 	  
-    public Double x;
-    public Double y;
-    public Double z;
-    public Double t;
-    public Double rms;
-	
-    public Double latitude;
-    public Double longitude;
+	public Double x;
+	public Double y;
+	public Double z;
+	public Double t;
+	public Double rms;
+
+	public Double latitude;
+	public Double longitude;
 	public Double depthKm;              // depth below summit
 	public Double elevationRelativeKm; // elevasi terhadap MSL (nilai Z asli)
-	
+	public String eventId;
+
 	public String originTime;
-  }
+	}
 }
