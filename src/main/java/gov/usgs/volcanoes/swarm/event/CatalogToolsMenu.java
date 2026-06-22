@@ -876,6 +876,7 @@ public class CatalogToolsMenu {
 					+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
+					+ csv(endTag == null ? "" : DurationMagnitudeUtil.format(DurationMagnitudeUtil.calculate(endTag.durationSec))) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
 					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
@@ -1083,6 +1084,7 @@ public class CatalogToolsMenu {
 					+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
+					+ csv(endTag == null ? "" : DurationMagnitudeUtil.format(DurationMagnitudeUtil.calculate(endTag.durationSec))) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
 					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
@@ -1182,7 +1184,7 @@ public class CatalogToolsMenu {
 		BufferedWriter bw = new BufferedWriter(new FileWriter(outFile));
 
 		bw.write("eventId,originTime,station,channel,classification,pTime,sTime,endTime,"
-				+ "durationSec,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
+				+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
 				+ "dominantFrequencyHz,"
 				+ "operator,note\n");
 

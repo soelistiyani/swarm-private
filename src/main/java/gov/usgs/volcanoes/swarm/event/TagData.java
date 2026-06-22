@@ -128,29 +128,44 @@ public class TagData implements Comparator<TagData> {
 			durationSec = Double.parseDouble(data[10].trim());
 		}
 
-		if (data.length > 11 && data[11].trim().length() > 0) {
-			maxAbsAmplitude = Double.parseDouble(data[11].trim());
-		}
+		if (data.length > 15) {
+			// Format baru dengan kolom Md.
+			if (data[12].trim().length() > 0) {
+				maxAbsAmplitude = Double.parseDouble(data[12].trim());
+			}
 
-		if (data.length > 12) {
-			maxAbsTime = data[12].trim();
-		}
+			maxAbsTime = data[13].trim();
 
-		if (data.length > 13 && data[13].trim().length() > 0) {
-			peakToPeakAmplitude = Double.parseDouble(data[13].trim());
-		}
-		
-		if (data.length > 14 && data[14] != null && data[14].trim().length() > 0) {
-			dominantFrequencyHz = Double.parseDouble(data[14].trim());
+			if (data[14].trim().length() > 0) {
+				peakToPeakAmplitude = Double.parseDouble(data[14].trim());
+			}
+
+			if (data[15] != null && data[15].trim().length() > 0) {
+				dominantFrequencyHz = Double.parseDouble(data[15].trim());
+			}
+
+		} else {
+			// Format lama tanpa kolom Md.
+			if (data.length > 11 && data[11].trim().length() > 0) {
+				maxAbsAmplitude = Double.parseDouble(data[11].trim());
+			}
+
+			if (data.length > 12) {
+				maxAbsTime = data[12].trim();
+			}
+
+			if (data.length > 13 && data[13].trim().length() > 0) {
+				peakToPeakAmplitude = Double.parseDouble(data[13].trim());
+			}
+
+			if (data.length > 14 && data[14] != null && data[14].trim().length() > 0) {
+				dominantFrequencyHz = Double.parseDouble(data[14].trim());
+			}
 		}
 
 		if (eventId == null || eventId.length() == 0) {
 			eventId = makeEventId(channel, startTime);
 		}
-
-        if (eventId == null || eventId.length() == 0) {
-            eventId = makeEventId(channel, startTime);
-        }
 
         setColor();
     }
@@ -209,6 +224,11 @@ public class TagData implements Comparator<TagData> {
 		return phase;
 	}
 
+	private static String durationMagnitudeString(double durationSec) {
+		Double md = DurationMagnitudeUtil.calculate(durationSec);
+		return DurationMagnitudeUtil.format(md);
+	}
+
 	public String toString() {
 		return J2kSec.format(TIME_FORMAT_MS, startTime)
 				+ "," + safeCsv(channel)
@@ -221,6 +241,7 @@ public class TagData implements Comparator<TagData> {
 				+ "," + safeCsv(operator)
 				+ "," + safeCsv(note)
 				+ "," + doubleString(durationSec)
+				+ "," + durationMagnitudeString(durationSec)
 				+ "," + doubleString(maxAbsAmplitude)
 				+ "," + safeCsv(maxAbsTime)
 				+ "," + doubleString(peakToPeakAmplitude)

@@ -271,23 +271,37 @@ public class OptionsDialog extends SwarmModalDialog {
    * 
    * @see gov.usgs.volcanoes.swarm.SwarmModalDialog#wasOk()
    */
-  public void wasOk() {
-    swarmConfig.useLargeCursor = useLargeCursor.isSelected();
-    swarmConfig.hideStaleChannel = hideStaleChannel.isSelected();
-    swarmConfig.alwaysTileHorizontally = alwaysTileHorizontally.isSelected();
-    swarmConfig.durationEnabled = durationEnabled.isSelected();
-    swarmConfig.durationA = Double.parseDouble(durationA.getText().trim());
-    swarmConfig.durationB = Double.parseDouble(durationB.getText().trim());
-    swarmConfig.pVelocity = Double.parseDouble(pVelocity.getText().trim());
-    swarmConfig.velocityRatio = Double.parseDouble(velocityRatio.getText().trim());
-    swarmConfig.useInstrumentTimeZone = tzInstrument.isSelected();
-    swarmConfig.useLocalTimeZone = tzLocal.isSelected();
-    swarmConfig.specificTimeZone = TimeZone.getTimeZone((String) timeZones.getSelectedItem());
-    swarmConfig.useWms = useWms.isSelected();
-    swarmConfig.wmsServer = wmsServer.getText();
-    swarmConfig.wmsLayer = wmsLayer.getText();
-    swarmConfig.wmsStyles = wmsStyles.getText();
+	public void wasOk() {
+	  try {
+		swarmConfig.useLargeCursor = useLargeCursor.isSelected();
+		swarmConfig.hideStaleChannel = hideStaleChannel.isSelected();
+		swarmConfig.alwaysTileHorizontally = alwaysTileHorizontally.isSelected();
 
-    SwarmOptions.optionsChanged();
-  }
+		swarmConfig.durationEnabled = durationEnabled.isSelected();
+		swarmConfig.durationA = Double.parseDouble(durationA.getText().trim().replace(',', '.'));
+		swarmConfig.durationB = Double.parseDouble(durationB.getText().trim().replace(',', '.'));
+
+		swarmConfig.pVelocity = Double.parseDouble(pVelocity.getText().trim().replace(',', '.'));
+		swarmConfig.velocityRatio = Double.parseDouble(velocityRatio.getText().trim().replace(',', '.'));
+
+		swarmConfig.useInstrumentTimeZone = tzInstrument.isSelected();
+		swarmConfig.useLocalTimeZone = tzLocal.isSelected();
+		swarmConfig.specificTimeZone = TimeZone.getTimeZone((String) timeZones.getSelectedItem());
+		swarmConfig.useWms = useWms.isSelected();
+		swarmConfig.wmsServer = wmsServer.getText();
+		swarmConfig.wmsLayer = wmsLayer.getText();
+		swarmConfig.wmsStyles = wmsStyles.getText();
+
+		SwarmOptions.optionsChanged();
+
+	  } catch (NumberFormatException ex) {
+		JOptionPane.showMessageDialog(
+			this,
+			"Parameter Duration Magnitude, P velocity, dan Vp/Vs harus berupa angka.\n"
+				+ "Contoh: 1.86 atau -0.85",
+			"Input tidak valid",
+			JOptionPane.ERROR_MESSAGE
+		);
+	  }
+	}
 }

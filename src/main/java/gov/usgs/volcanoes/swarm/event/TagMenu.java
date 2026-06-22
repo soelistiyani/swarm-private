@@ -514,7 +514,7 @@ public class TagMenu extends JPopupMenu {
 			bw.write(
 					"time,channel,classification,phase,onset,polarity,"
 					+ "uncertaintyMs,eventId,operator,note,"
-					+ "durationSec,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
+					+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
 					+ "dominantFrequencyHz\n");
 
 			for (TagData data : tagData) {
