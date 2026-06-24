@@ -152,7 +152,7 @@
 							<goal>shade</goal>
 						</goals>
 						<configuration>
-							<minimizeJar>true</minimizeJar>
+							<minimizeJar>false</minimizeJar>
 							<filters>
 								<filter>
 									<artifact>log4j:log4j</artifact>
@@ -226,6 +226,14 @@
 									<include>gov.usgs.earthquake:messageUtils</include>
 									<include>com.sun.xml.bind:jaxb-impl</include>
 									<include>com.sun.xml.bind:jaxb-api</include>
+									<!-- Apache POI for XLSX export -->
+									<include>org.apache.poi:poi</include>
+									<include>org.apache.poi:poi-ooxml</include>
+									<include>org.apache.poi:poi-ooxml-schemas</include>
+									<include>org.apache.xmlbeans:xmlbeans</include>
+									<include>com.github.virtuald:curvesapi</include>
+									<include>commons-codec:commons-codec</include>
+									<include>org.apache.commons:commons-collections4</include>		
 								</includes>
 							</artifactSet>
 						</configuration>
@@ -537,6 +545,11 @@
 			<groupId>gov.usgs.volcanoes</groupId>
 			<artifactId>wwsclient</artifactId>
 			<version>2.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>3.17</version>
 		</dependency>
 	</dependencies>
 	<organization>

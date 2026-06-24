@@ -27,12 +27,26 @@ import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CreationHelper;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 public class CatalogToolsMenu {
 
 	private HelicorderViewPanel hvp;
 	private File taggerRootDir;
 	private double j2k;
+
+	private static final String CATALOG_HEADER =
+			"eventId,originTime,station,channel,classification,pTime,sTime,endTime,"
+			+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
+			+ "dominantFrequencyHz,f1,f2,f3,"
+			+ "operator,note";
 
 	public CatalogToolsMenu(HelicorderViewPanel hvp, File taggerRootDir) {
 		this.hvp = hvp;
@@ -174,6 +188,19 @@ public class CatalogToolsMenu {
 				return;
 			}
 
+			/*
+			 * Satu backup besar untuk seluruh date range.
+			 */
+			try {
+				backupCatalogDateRange(start, end);
+			} catch (IOException ex) {
+				JOptionPane.showMessageDialog(
+						hvp,
+						"Failed to backup catalog date range:\n" + ex.getMessage(),
+						"Backup Warning",
+						JOptionPane.WARNING_MESSAGE);
+			}
+
 			java.util.Calendar cal = java.util.Calendar.getInstance();
 			cal.setTime(startDate);
 
@@ -181,7 +208,12 @@ public class CatalogToolsMenu {
 
 			while (!cal.getTime().after(endDate)) {
 				String ymd = sdf.format(cal.getTime());
-				rebuildCatalogForDay(ymd);
+
+				/*
+				 * Rebuild harian tanpa backup per hari.
+				 */
+				rebuildCatalogForDay(ymd, true, false);
+
 				count++;
 
 				cal.add(java.util.Calendar.DATE, 1);
@@ -206,6 +238,10 @@ public class CatalogToolsMenu {
 	}
 
 	private void rebuildCatalogForDay(String ymd) {
+		rebuildCatalogForDay(ymd, true, true);
+	}
+
+	private void rebuildCatalogForDay(String ymd, boolean writeXlsx, boolean doBackup) {
 
 		if (taggerRootDir == null) {
 			JOptionPane.showMessageDialog(
@@ -216,14 +252,16 @@ public class CatalogToolsMenu {
 			return;
 		}
 
-		try {
-			backupCatalogDay(ymd);
-		} catch (IOException ex) {
-			JOptionPane.showMessageDialog(
-					hvp,
-					"Failed to backup catalog:\n" + ex.getMessage(),
-					"Backup Warning",
-					JOptionPane.WARNING_MESSAGE);
+		if (doBackup) {
+			try {
+				backupCatalogDay(ymd);
+			} catch (IOException ex) {
+				JOptionPane.showMessageDialog(
+						hvp,
+						"Failed to backup catalog:\n" + ex.getMessage(),
+						"Backup Warning",
+						JOptionPane.WARNING_MESSAGE);
+			}
 		}
 
 		String year = ymd.substring(0, 4);
@@ -247,7 +285,7 @@ public class CatalogToolsMenu {
 			loadTagsFromFile(csvFile, tags);
 		}
 
-		rebuildCatalogFromTags(tags);
+		rebuildCatalogFromTags(tags, writeXlsx);
 	}
 
 	private void collectTaggerCsvFiles(File dir, ArrayList<File> files) {
@@ -297,6 +335,63 @@ public class CatalogToolsMenu {
 
 		copyDirectory(sourceDir, backupDir);
 	}
+
+	private void backupCatalogDateRange(
+			String startYmd,
+			String endYmd) throws IOException {
+
+		if (taggerRootDir == null) {
+			return;
+		}
+
+		String stamp =
+				new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
+						.format(new java.util.Date());
+
+		File backupRoot = new File(
+				new File(taggerRootDir, "backup"),
+				"catalog_backup_" + stamp + "_range_" + startYmd + "_" + endYmd);
+
+		java.text.SimpleDateFormat sdf =
+				new java.text.SimpleDateFormat("yyyyMMdd");
+
+		sdf.setLenient(false);
+
+		try {
+			java.util.Date startDate = sdf.parse(startYmd);
+			java.util.Date endDate = sdf.parse(endYmd);
+
+			java.util.Calendar cal = java.util.Calendar.getInstance();
+			cal.setTime(startDate);
+
+			while (!cal.getTime().after(endDate)) {
+
+				String ymd = sdf.format(cal.getTime());
+				String year = ymd.substring(0, 4);
+
+				File sourceDir = new File(
+						new File(
+								new File(taggerRootDir, "catalog"),
+								year),
+						ymd);
+
+				if (sourceDir.exists()) {
+
+					File targetDir = new File(
+							new File(backupRoot, year),
+							ymd);
+
+					copyDirectory(sourceDir, targetDir);
+				}
+
+				cal.add(java.util.Calendar.DATE, 1);
+			}
+
+		} catch (java.text.ParseException ex) {
+			throw new IOException("Invalid date range for backup.", ex);
+		}
+	}
+
 
 	private void copyDirectory(File source, File target) throws IOException {
 
@@ -818,7 +913,7 @@ public class CatalogToolsMenu {
 		return false;
 	}
 
-	private void rebuildCatalogFromTags(ArrayList<TagData> tags) {
+	private void rebuildCatalogFromTags(ArrayList<TagData> tags, boolean writeXlsx) {
 
 		Map<String, ArrayList<String>> linesByDayAll =
 				new LinkedHashMap<String, ArrayList<String>>();
@@ -970,11 +1065,22 @@ public class CatalogToolsMenu {
 					dayCatalogDir.mkdirs();
 				}
 
-				writeCatalogFile(
+				File allCsvFile =
 						new File(
 								dayCatalogDir,
-								"Swarm_EventCatalog_" + ymd + "_ALL.csv"),
+								"Swarm_EventCatalog_" + ymd + "_ALL.csv");
+
+				writeCatalogFile(
+						allCsvFile,
 						linesByDayAll.get(ymd));
+
+				if (writeXlsx) {
+					writeCatalogXlsxFile(
+							new File(
+									dayCatalogDir,
+									"Swarm_EventCatalog_" + ymd + "_ALL.xlsx"),
+							linesByDayAll.get(ymd));
+				}
 
 				File stationDir = new File(dayCatalogDir, "station");
 
@@ -1025,8 +1131,12 @@ public class CatalogToolsMenu {
 
 		CatalogToolsMenu tools =
 				new CatalogToolsMenu(hvp, taggerRootDir);
-
-		tools.rebuildCatalogForDay(ymd);
+				
+		/*
+		* Silent rebuild dipanggil otomatis setelah picking.
+		* Jangan tulis XLSX di sini supaya klik END tetap ringan.
+		*/
+		tools.rebuildCatalogForDay(ymd, false, false);
 	}
 
 	private static void exportEventCatalogByDay(
@@ -1192,11 +1302,22 @@ public class CatalogToolsMenu {
 					dayCatalogDir.mkdirs();
 				}
 
-				writeCatalogFile(
+				File allCsvFile =
 						new File(
 								dayCatalogDir,
-								"Swarm_EventCatalog_" + ymd + "_ALL.csv"),
+								"Swarm_EventCatalog_" + ymd + "_ALL.csv");
+
+				writeCatalogFile(
+						allCsvFile,
 						linesByDayAll.get(ymd));
+
+				if (!silent) {
+					writeCatalogXlsxFile(
+							new File(
+									dayCatalogDir,
+									"Swarm_EventCatalog_" + ymd + "_ALL.xlsx"),
+							linesByDayAll.get(ymd));
+				}
 
 				File stationDir = new File(dayCatalogDir, "station");
 
@@ -1239,16 +1360,163 @@ public class CatalogToolsMenu {
 
 		BufferedWriter bw = new BufferedWriter(new FileWriter(outFile));
 
-		bw.write("eventId,originTime,station,channel,classification,pTime,sTime,endTime,"
-				+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
-				+ "dominantFrequencyHz,f1,f2,f3,"
-				+ "operator,note\n");
+		bw.write(CATALOG_HEADER + "\n");
 
 		for (String line : lines) {
 			bw.write(line + "\n");
 		}
 
 		bw.close();
+	}
+
+	private static void writeCatalogXlsxFile(
+			File outFile,
+			ArrayList<String> lines) throws IOException {
+
+		Workbook workbook = new XSSFWorkbook();
+		Sheet sheet = workbook.createSheet("Event Catalog");
+
+		CreationHelper creationHelper = workbook.getCreationHelper();
+
+		CellStyle headerStyle = workbook.createCellStyle();
+		Font headerFont = workbook.createFont();
+		headerFont.setBold(true);
+		headerStyle.setFont(headerFont);
+
+		String[] headers = CATALOG_HEADER.split(",", -1);
+
+		Row headerRow = sheet.createRow(0);
+
+		for (int i = 0; i < headers.length; i++) {
+			Cell cell = headerRow.createCell(i);
+			cell.setCellValue(headers[i]);
+			cell.setCellStyle(headerStyle);
+		}
+
+		int rowIndex = 1;
+
+		for (String line : lines) {
+
+			String[] cols = splitCsvLine(line);
+			Row row = sheet.createRow(rowIndex++);
+
+			for (int i = 0; i < headers.length; i++) {
+
+				String value = i < cols.length ? cols[i] : "";
+				Cell cell = row.createCell(i);
+
+				/*
+				 * Kolom waktu tetap disimpan sebagai teks dulu.
+				 * Ini lebih aman karena format waktu event memakai UTC string
+				 * dan tidak akan berubah karena setting regional Excel.
+				 */
+				if ("originTime".equals(headers[i])
+						|| "pTime".equals(headers[i])
+						|| "sTime".equals(headers[i])
+						|| "endTime".equals(headers[i])
+						|| "maxAbsTime".equals(headers[i])) {
+
+					cell.setCellValue(value);
+
+				} else {
+
+					Double numberValue = parseDoubleOrNull(value);
+
+					if (numberValue != null) {
+						cell.setCellValue(numberValue.doubleValue());
+					} else {
+						cell.setCellValue(value);
+					}
+				}
+			}
+		}
+
+		sheet.createFreezePane(0, 1);
+
+		for (int i = 0; i < headers.length; i++) {
+			if ("originTime".equals(headers[i])
+					|| "pTime".equals(headers[i])
+					|| "sTime".equals(headers[i])
+					|| "endTime".equals(headers[i])
+					|| "maxAbsTime".equals(headers[i])) {
+
+				sheet.setColumnWidth(i, 24 * 256);
+
+			} else {
+				sheet.setColumnWidth(i, 18 * 256);
+			}
+		}
+
+		FileOutputStream out = new FileOutputStream(outFile);
+		workbook.write(out);
+		out.close();
+
+		workbook.close();
+	}
+
+	private static Double parseDoubleOrNull(String s) {
+
+		if (s == null) {
+			return null;
+		}
+
+		s = s.trim();
+
+		if (s.length() == 0) {
+			return null;
+		}
+
+		try {
+			return Double.valueOf(s);
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	private static String[] splitCsvLine(String line) {
+
+		ArrayList<String> result = new ArrayList<String>();
+
+		if (line == null) {
+			return new String[0];
+		}
+
+		StringBuilder sb = new StringBuilder();
+		boolean inQuotes = false;
+
+		for (int i = 0; i < line.length(); i++) {
+
+			char c = line.charAt(i);
+
+			if (c == '"') {
+
+				if (inQuotes
+						&& i + 1 < line.length()
+						&& line.charAt(i + 1) == '"') {
+
+					sb.append('"');
+					i++;
+
+				} else {
+					inQuotes = !inQuotes;
+				}
+
+			} else if (c == ',' && !inQuotes) {
+
+				result.add(sb.toString());
+				sb.setLength(0);
+
+			} else {
+				sb.append(c);
+			}
+		}
+
+		result.add(sb.toString());
+
+		String[] arr = new String[result.size()];
+		result.toArray(arr);
+
+		return arr;
 	}
 
 	private static String getStationCode(TagData tag) {

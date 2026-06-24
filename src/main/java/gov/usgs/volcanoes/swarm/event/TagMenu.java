@@ -19,8 +19,10 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.TimeZone;
 
 import javax.swing.JFileChooser;
@@ -1114,17 +1116,256 @@ public class TagMenu extends JPopupMenu {
 			return;
 		}
 
+		String confirmMessage;
+
+		if ("P".equalsIgnoreCase(phase)) {
+			confirmMessage =
+					"Delete P pick?\n\n"
+					+ "S and END picks for this event will also be deleted.";
+		} else {
+			confirmMessage = "Delete " + phase + " pick?";
+		}
+
 		int result = JOptionPane.showConfirmDialog(
 				hvp,
-				"Delete " + phase + " pick?",
+				confirmMessage,
 				"Confirm Delete",
 				JOptionPane.YES_NO_OPTION);
 
-		if (result == JOptionPane.YES_OPTION) {
-			hvp.getTagData().remove(deleteTag);
-			repaintPanels();
-			write();
+		if (result != JOptionPane.YES_OPTION) {
+			return;
 		}
+
+		Set<String> affectedYmds = new HashSet<String>();
+		affectedYmds.add(formatJ2k(deleteTag.startTime, "yyyyMMdd"));
+
+		/*
+		 * Kalau P dihapus, hapus juga S dan END.
+		 * Karena S dan END bergantung pada P untuk durasi, amplitudo,
+		 * dan band frekuensi P-END.
+		 */
+		if ("P".equalsIgnoreCase(phase)) {
+
+			removePhasesFromMemory(
+					deleteTag.eventId,
+					new String[] { "P", "S", "END" });
+
+			deletePhaseFromAllTaggerFiles(
+					deleteTag.eventId,
+					"P",
+					affectedYmds);
+
+			deletePhaseFromAllTaggerFiles(
+					deleteTag.eventId,
+					"S",
+					affectedYmds);
+
+			deletePhaseFromAllTaggerFiles(
+					deleteTag.eventId,
+					"END",
+					affectedYmds);
+
+		} else {
+
+			hvp.getTagData().remove(deleteTag);
+
+			deletePhaseFromAllTaggerFiles(
+					deleteTag.eventId,
+					phase,
+					affectedYmds);
+		}
+
+		repaintPanels();
+
+		for (String ymd : affectedYmds) {
+			CatalogToolsMenu.rebuildCatalogForDaySilent(
+					hvp,
+					taggerRootDir,
+					ymd);
+		}
+
+		setStatus(
+				"Phase pick deleted | Catalog updated | "
+				+ affectedYmds.toString());
+	}
+
+	private void removePhasesFromMemory(
+			String eventId,
+			String[] phases) {
+
+		if (eventId == null || phases == null) {
+			return;
+		}
+
+		ArrayList<TagData> removeList = new ArrayList<TagData>();
+
+		for (TagData tag : hvp.getTagData()) {
+
+			if (!eventId.equals(tag.eventId)) {
+				continue;
+			}
+
+			for (int i = 0; i < phases.length; i++) {
+				if (isSameDeletePhase(tag, phases[i])) {
+					removeList.add(tag);
+					break;
+				}
+			}
+		}
+
+		hvp.getTagData().removeAll(removeList);
+	}
+
+	private void deletePhaseFromAllTaggerFiles(
+			String eventId,
+			String phase,
+			Set<String> affectedYmds) {
+
+		if (eventId == null || eventId.trim().length() == 0) {
+			return;
+		}
+
+		if (phase == null || phase.trim().length() == 0) {
+			return;
+		}
+
+		if (taggerRootDir == null) {
+			return;
+		}
+
+		if (affectedYmds == null || affectedYmds.size() == 0) {
+			return;
+		}
+
+		for (String ymd : affectedYmds) {
+
+			if (ymd == null || ymd.length() < 8) {
+				continue;
+			}
+
+			String year = ymd.substring(0, 4);
+
+			File dayTaggerDir =
+					new File(
+							new File(
+									new File(taggerRootDir, "tagger"),
+									year),
+							ymd);
+
+			if (!dayTaggerDir.exists() || !dayTaggerDir.isDirectory()) {
+				continue;
+			}
+
+			ArrayList<File> files = new ArrayList<File>();
+			collectSwarmTaggerFiles(dayTaggerDir, files);
+
+			for (File file : files) {
+				removePhaseFromTaggerFile(file, eventId, phase);
+			}
+		}
+	}
+	
+	private void removePhaseFromTaggerFile(
+			File file,
+			String eventId,
+			String phase) {
+
+		if (file == null || eventId == null || phase == null) {
+			return;
+		}
+
+		ArrayList<String> keptLines = new ArrayList<String>();
+		boolean changed = false;
+
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(file));
+			String line;
+
+			while ((line = br.readLine()) != null) {
+
+				if (line.trim().length() == 0) {
+					continue;
+				}
+
+				/*
+				 * Header
+				 * tetap
+				 * disimpan.
+				 */
+				if (line.toLowerCase().startsWith("time,")) {
+					keptLines.add(line);
+					continue;
+				}
+
+				boolean removeLine = false;
+
+				try {
+					TagData tag = new TagData(line);
+
+					if (eventId.equals(tag.eventId)
+							&& isSameDeletePhase(tag, phase)) {
+						removeLine = true;
+						changed = true;
+					}
+
+				} catch (Exception ex) {
+					/*
+					 * Kalau
+					 * ada
+					 * baris
+					 * rusak,
+					 * jangan
+					 * dihapus
+					 * otomatis.
+					 */
+					removeLine = false;
+				}
+
+				if (!removeLine) {
+					keptLines.add(line);
+				}
+			}
+
+			br.close();
+
+			if (!changed) {
+				return;
+			}
+
+			BufferedWriter bw = new BufferedWriter(new FileWriter(file, false));
+
+			for (String keptLine : keptLines) {
+				bw.write(keptLine);
+				bw.write("\n");
+			}
+
+			bw.close();
+
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Failed to delete phase from tagger file:\n"
+					+ file.getAbsolutePath()
+					+ "\n\n"
+					+ ex.getMessage(),
+					"Delete Phase Warning",
+					JOptionPane.WARNING_MESSAGE);
+		}
+	}
+
+	private boolean isSameDeletePhase(TagData tag, String phase) {
+
+		if (tag == null || phase == null) {
+			return false;
+		}
+
+		if ("END".equalsIgnoreCase(phase)
+				|| "CODA".equalsIgnoreCase(phase)) {
+
+			return tag.isCoda();
+		}
+
+		return phase.equalsIgnoreCase(tag.phase);
 	}
 
 	private String getActiveOrNearestEventId() {
@@ -1202,14 +1443,206 @@ public class TagMenu extends JPopupMenu {
 			}
 		}
 
-		hvp.getTagData().removeAll(removeList);
+	/*
+	 * Simpan tanggal-tanggal yang terdampak sebelum tag dihapus dari memory.
+	 */
+	Set<String> affectedYmds = new HashSet<String>();
 
-		if (eventId.equals(currentEventId)) {
-			currentEventId = "";
+	for (TagData tag : removeList) {
+		affectedYmds.add(formatJ2k(tag.startTime, "yyyyMMdd"));
+	}
+
+	hvp.getTagData().removeAll(removeList);
+
+	/*
+	 * Hapus event ini juga dari semua file SwarmTagger harian.
+	 * Ini penting agar rebuild catalog tidak memunculkan lagi event yang sudah dihapus.
+	 */
+	deleteEventFromAllTaggerFiles(eventId, affectedYmds);
+
+	if (eventId.equals(currentEventId)) {
+		currentEventId = "";
+	}
+
+	repaintPanels();
+
+	/*
+	 * Jangan hanya write() file aktif, karena event bisa berasal dari file operator lain.
+	 * Setelah file tagger dibersihkan, rebuild catalog silent untuk hari terdampak.
+	 */
+	for (String ymd : affectedYmds) {
+		CatalogToolsMenu.rebuildCatalogForDaySilent(
+				hvp,
+				taggerRootDir,
+				ymd);
+	}
+
+	setStatus(
+			"Event deleted | Catalog updated | "
+			+ affectedYmds.toString());
+	}
+
+	private void deleteEventFromAllTaggerFiles(
+			String eventId,
+			Set<String> affectedYmds) {
+
+		if (eventId == null || eventId.trim().length() == 0) {
+			return;
 		}
 
-		repaintPanels();
-		write();
+		if (taggerRootDir == null) {
+			return;
+		}
+
+		if (affectedYmds == null || affectedYmds.size() == 0) {
+			return;
+		}
+
+		for (String ymd : affectedYmds) {
+
+			if (ymd == null || ymd.length() < 8) {
+				continue;
+			}
+
+			String year = ymd.substring(0, 4);
+
+			File dayTaggerDir =
+					new File(
+							new File(
+									new File(taggerRootDir, "tagger"),
+									year),
+							ymd);
+
+			if (!dayTaggerDir.exists() || !dayTaggerDir.isDirectory()) {
+				continue;
+			}
+
+			ArrayList<File> files = new ArrayList<File>();
+			collectSwarmTaggerFiles(dayTaggerDir, files);
+
+			for (File file : files) {
+				removeEventIdFromTaggerFile(file, eventId);
+			}
+		}
+	}
+
+	private void collectSwarmTaggerFiles(
+			File dir,
+			ArrayList<File> files) {
+
+		if (dir == null || files == null) {
+			return;
+		}
+
+		File[] list = dir.listFiles();
+
+		if (list == null) {
+			return;
+		}
+
+		for (File f : list) {
+
+			if (f.isDirectory()) {
+				collectSwarmTaggerFiles(f, files);
+
+			} else if (f.isFile()
+					&& f.getName().toLowerCase().endsWith(".csv")
+					&& f.getName().startsWith("SwarmTagger_")) {
+
+				files.add(f);
+			}
+		}
+	}
+
+	private void removeEventIdFromTaggerFile(
+			File file,
+			String eventId) {
+
+		if (file == null || eventId == null) {
+			return;
+		}
+
+		ArrayList<String> keptLines = new ArrayList<String>();
+		boolean changed = false;
+
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(file));
+			String line;
+
+			while ((line = br.readLine()) != null) {
+
+				if (line.trim().length() == 0) {
+					continue;
+				}
+
+				/*
+				 * Header
+				 * tetap
+				 * disimpan.
+				 */
+				if (line.toLowerCase().startsWith("time,")) {
+					keptLines.add(line);
+					continue;
+				}
+
+				boolean removeLine = false;
+
+				try {
+					TagData tag = new TagData(line);
+
+					if (eventId.equals(tag.eventId)) {
+						removeLine = true;
+						changed = true;
+					}
+
+				} catch (Exception ex) {
+					/*
+					 * Kalau
+					 * ada
+					 * baris
+					 * rusak,
+					 * jangan
+					 * dihapus
+					 * otomatis.
+					 * Simpan
+					 * agar
+					 * tidak
+					 * kehilangan
+					 * data.
+					 */
+					removeLine = false;
+				}
+
+				if (!removeLine) {
+					keptLines.add(line);
+				}
+			}
+
+			br.close();
+
+			if (!changed) {
+				return;
+			}
+
+			BufferedWriter bw = new BufferedWriter(new FileWriter(file, false));
+
+			for (String keptLine : keptLines) {
+				bw.write(keptLine);
+				bw.write("\n");
+			}
+
+			bw.close();
+
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Failed to delete event from tagger file:\n"
+					+ file.getAbsolutePath()
+					+ "\n\n"
+					+ ex.getMessage(),
+					"Delete Event Warning",
+					JOptionPane.WARNING_MESSAGE);
+		}
 	}
 
     private void createClearMenu() {

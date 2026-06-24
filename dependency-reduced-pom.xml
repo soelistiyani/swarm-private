@@ -216,7 +216,7 @@
               <goal>shade</goal>
             </goals>
             <configuration>
-              <minimizeJar>true</minimizeJar>
+              <minimizeJar>false</minimizeJar>
               <filters>
                 <filter>
                   <artifact>log4j:log4j</artifact>
@@ -290,6 +290,13 @@
                   <include>gov.usgs.earthquake:messageUtils</include>
                   <include>com.sun.xml.bind:jaxb-impl</include>
                   <include>com.sun.xml.bind:jaxb-api</include>
+                  <include>org.apache.poi:poi</include>
+                  <include>org.apache.poi:poi-ooxml</include>
+                  <include>org.apache.poi:poi-ooxml-schemas</include>
+                  <include>org.apache.xmlbeans:xmlbeans</include>
+                  <include>com.github.virtuald:curvesapi</include>
+                  <include>commons-codec:commons-codec</include>
+                  <include>org.apache.commons:commons-collections4</include>
                 </includes>
               </artifactSet>
             </configuration>
