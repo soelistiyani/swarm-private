@@ -11,7 +11,8 @@ import java.util.Comparator;
  * Tag data for helicorder event classification and phase picking.
  *
  * CSV format:
- * time,channel,classification,phase,onset,polarity,uncertaintyMs,eventId,operator,note
+ * time,channel,classification,phase,onset,polarity,uncertaintyMs,eventId,operator,note,
+ * durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,dominantFrequencyHz,f1,f2,f3
  *
  * Backward compatible with old format:
  * time,channel,classification
@@ -36,6 +37,14 @@ public class TagData implements Comparator<TagData> {
 	public String maxAbsTime = "";
 	public double peakToPeakAmplitude = Double.NaN;
 	public double dominantFrequencyHz = Double.NaN;
+
+	// Half-power frequency band
+	// f1 = lower band frequency
+	// f2 = peak frequency
+	// f3 = upper band frequency
+	public double f1 = Double.NaN;
+	public double f2 = Double.NaN;
+	public double f3 = Double.NaN;
 
 	private static final String TIME_FORMAT_MS = "yyyy-MM-dd HH:mm:ss.SSS";
 
@@ -144,7 +153,28 @@ public class TagData implements Comparator<TagData> {
 				dominantFrequencyHz = Double.parseDouble(data[15].trim());
 			}
 
+			// Format baru dengan half-power band:
+			// index 16=f1, 17=f2, 18=f3
+			if (data.length > 16 && data[16] != null && data[16].trim().length() > 0) {
+				f1 = Double.parseDouble(data[16].trim());
+			}
+
+			if (data.length > 17 && data[17] != null && data[17].trim().length() > 0) {
+				f2 = Double.parseDouble(data[17].trim());
+			}
+
+			if (data.length > 18 && data[18] != null && data[18].trim().length() > 0) {
+				f3 = Double.parseDouble(data[18].trim());
+			}
+
+			// Backward compatibility:
+			// kalau file lama belum punya f2, samakan f2 dengan dominantFrequencyHz
+			if (Double.isNaN(f2) && !Double.isNaN(dominantFrequencyHz)) {
+				f2 = dominantFrequencyHz;
+			}
+
 		} else {
+	
 			// Format lama tanpa kolom Md.
 			if (data.length > 11 && data[11].trim().length() > 0) {
 				maxAbsAmplitude = Double.parseDouble(data[11].trim());
@@ -160,6 +190,12 @@ public class TagData implements Comparator<TagData> {
 
 			if (data.length > 14 && data[14] != null && data[14].trim().length() > 0) {
 				dominantFrequencyHz = Double.parseDouble(data[14].trim());
+			}
+			
+			// Backward compatibility:
+			// format lama hanya punya dominantFrequencyHz, jadi f2 disamakan.
+			if (Double.isNaN(f2) && !Double.isNaN(dominantFrequencyHz)) {
+			    f2 = dominantFrequencyHz;
 			}
 		}
 
@@ -245,7 +281,10 @@ public class TagData implements Comparator<TagData> {
 				+ "," + doubleString(maxAbsAmplitude)
 				+ "," + safeCsv(maxAbsTime)
 				+ "," + doubleString(peakToPeakAmplitude)
-				+ "," + doubleString(dominantFrequencyHz);
+				+ "," + doubleString(dominantFrequencyHz)
+				+ "," + doubleString(f1)
+				+ "," + doubleString(f2)
+				+ "," + doubleString(f3);
 	}
 
 	public String getTimeString() {

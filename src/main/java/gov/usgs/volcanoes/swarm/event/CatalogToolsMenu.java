@@ -658,6 +658,38 @@ public class CatalogToolsMenu {
 							.append(endTag.dominantFrequencyHz).append(" Hz | ")
 							.append(eventId).append("\n");
 				}
+				
+				if (Double.isNaN(endTag.f1)
+						|| Double.isNaN(endTag.f2)
+						|| Double.isNaN(endTag.f3)) {
+
+					warningCount++;
+					sb.append("[WARNING] Missing frequency band f1/f2/f3 | ")
+							.append(time).append(" | ")
+							.append(station).append(" | ")
+							.append(eventId).append("\n");
+				}
+
+				if (!Double.isNaN(endTag.f1)
+						&& !Double.isNaN(endTag.f2)
+						&& !Double.isNaN(endTag.f3)) {
+
+					if (!(endTag.f1 > 0
+							&& endTag.f2 > 0
+							&& endTag.f3 > 0
+							&& endTag.f1 <= endTag.f2
+							&& endTag.f2 <= endTag.f3)) {
+
+						warningCount++;
+						sb.append("[WARNING] Invalid frequency band f1/f2/f3 | ")
+								.append(time).append(" | ")
+								.append(station).append(" | ")
+								.append("f1=").append(endTag.f1).append(" Hz, ")
+								.append("f2=").append(endTag.f2).append(" Hz, ")
+								.append("f3=").append(endTag.f3).append(" Hz | ")
+								.append(eventId).append("\n");
+					}
+				}
 			}
 		}
 
@@ -863,6 +895,15 @@ public class CatalogToolsMenu {
 			double dominantFrequencyHz =
 					endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
 
+			double f1 =
+					endTag == null ? Double.NaN : endTag.f1;
+
+			double f2 =
+					endTag == null ? Double.NaN : endTag.f2;
+
+			double f3 =
+					endTag == null ? Double.NaN : endTag.f3;
+
 			if (endTag != null) {
 			}
 
@@ -881,6 +922,9 @@ public class CatalogToolsMenu {
 					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
 					+ csv(doubleString(dominantFrequencyHz)) + ","
+					+ csv(doubleString(f1)) + ","
+					+ csv(doubleString(f2)) + ","
+					+ csv(doubleString(f3)) + ","
 					+ csv(ref.operator) + ","
 					+ csv(ref.note);
 
@@ -1074,6 +1118,15 @@ public class CatalogToolsMenu {
 			double dominantFrequencyHz =
 					endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
 
+			double f1 =
+					endTag == null ? Double.NaN : endTag.f1;
+
+			double f2 =
+					endTag == null ? Double.NaN : endTag.f2;
+
+			double f3 =
+					endTag == null ? Double.NaN : endTag.f3;
+
 			String line =
 					csv(eventId) + ","
 					+ csv(pTag == null ? ref.getTimeString() : pTag.getTimeString()) + ","
@@ -1089,6 +1142,9 @@ public class CatalogToolsMenu {
 					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
 					+ csv(doubleString(dominantFrequencyHz)) + ","
+					+ csv(doubleString(f1)) + ","
+					+ csv(doubleString(f2)) + ","
+					+ csv(doubleString(f3)) + ","
 					+ csv(ref.operator) + ","
 					+ csv(ref.note);
 
@@ -1185,7 +1241,7 @@ public class CatalogToolsMenu {
 
 		bw.write("eventId,originTime,station,channel,classification,pTime,sTime,endTime,"
 				+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
-				+ "dominantFrequencyHz,"
+				+ "dominantFrequencyHz,f1,f2,f3,"
 				+ "operator,note\n");
 
 		for (String line : lines) {

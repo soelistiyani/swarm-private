@@ -515,7 +515,7 @@ public class TagMenu extends JPopupMenu {
 					"time,channel,classification,phase,onset,polarity,"
 					+ "uncertaintyMs,eventId,operator,note,"
 					+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
-					+ "dominantFrequencyHz\n");
+					+ "dominantFrequencyHz,f1,f2,f3\n");
 
 			for (TagData data : tagData) {
 
@@ -790,6 +790,12 @@ public class TagMenu extends JPopupMenu {
 		}
 	}
 
+	private static class FrequencyBand {
+		double f1 = Double.NaN;
+		double f2 = Double.NaN;
+		double f3 = Double.NaN;
+	}
+
 	private void createPhasePick(
 			String phase,
 			String onset,
@@ -874,10 +880,18 @@ public class TagMenu extends JPopupMenu {
 			endTag = findPhaseTag(eventId, "END");
 
 			if (endTag != null && pTag != null && endTag.startTime > pTag.startTime) {
-				endTag.dominantFrequencyHz =
-						hvp.calculateDominantFrequencyForWindow(
+
+				double[] band =
+						hvp.calculateHalfPowerFrequencyBandForWindow(
 								pTag.startTime,
 								endTag.startTime);
+
+				if (band != null && band.length >= 3) {
+					endTag.f1 = band[0];
+					endTag.f2 = band[1];
+					endTag.f3 = band[2];
+					endTag.dominantFrequencyHz = band[1];
+				}
 			}
 
 			write();
@@ -892,7 +906,46 @@ public class TagMenu extends JPopupMenu {
 			return;
 		}
 	}
-	
+
+	private FrequencyBand calculateHalfPowerFrequencyBandForWindow(
+			double startTime,
+			double endTime) {
+
+		FrequencyBand band = new FrequencyBand();
+
+		if (endTime <= startTime) {
+			return band;
+		}
+
+		/*
+		 * Tahap pertama:
+		 * sementara tetap gunakan fungsi lama agar tidak merusak flow.
+		 * Ini menjadikan f2 sama dengan dominantFrequencyHz lama.
+		 *
+		 * Tahap berikutnya:
+		 * ganti bagian ini dengan fungsi baru di HelicorderViewPanel
+		 * yang benar-benar mengambil waveform P-END,
+		 * detrend, taper, high-pass 0.5 Hz, lalu half-power spectrum.
+		 */
+		double peak =
+				hvp.calculateDominantFrequencyForWindow(
+						startTime,
+						endTime);
+
+		band.f2 = peak;
+
+		/*
+		 * f1 dan f3 belum bisa dihitung langsung dari TagMenu
+		 * kecuali kita punya akses sample waveform dan sample rate.
+		 * Jadi sebaiknya perhitungan final dibuat di HelicorderViewPanel,
+		 * bukan hanya di TagMenu.
+		 */
+		band.f1 = Double.NaN;
+		band.f3 = Double.NaN;
+
+		return band;
+	}
+
 	private void replaceSamePhasePick(TagData newTag) {
 
 		if (newTag == null) {

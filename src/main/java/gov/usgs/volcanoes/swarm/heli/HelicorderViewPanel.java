@@ -853,128 +853,128 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
   }
 
 
-public void calculateAmplitudeForEvent(final String eventId) {
+	public void calculateAmplitudeForEvent(final String eventId) {
 
-    final TagData pPick = findPhasePick(eventId, "P");
-    final TagData codaPick = findPhasePick(eventId, "END");
+		final TagData pPick = findPhasePick(eventId, "P");
+		final TagData codaPick = findPhasePick(eventId, "END");
 
-    if (pPick == null || codaPick == null) {
-        return;
-    }
-
-    if (codaPick.startTime <= pPick.startTime) {
-        return;
-    }
-
-    final SwingWorker worker = new SwingWorker() {
-
-        private double durationSec = Double.NaN;
-        private double maxAbsAmplitude = Double.NaN;
-        private String maxAbsTime = "";
-        private double peakToPeakAmplitude = Double.NaN;
-
-        public Object construct() {
-
-            Wave wave = parent.getWave(
-                    pPick.startTime,
-                    codaPick.startTime);
-
-            if (wave == null) {
-                return null;
-            }
-
-            calculateAmplitudeStats(
-                    wave,
-                    pPick.startTime,
-                    codaPick.startTime);
-
-            return null;
-        }
-
-		public void finished() {
-
-			codaPick.durationSec = durationSec;
-			codaPick.maxAbsAmplitude = maxAbsAmplitude;
-			codaPick.maxAbsTime = maxAbsTime;
-			codaPick.peakToPeakAmplitude = peakToPeakAmplitude;
-
-			getTagMenu().onAmplitudeCalculationFinished(eventId);
-
-			repaint();
+		if (pPick == null || codaPick == null) {
+			return;
 		}
 
-		private void calculateAmplitudeStats(
-				Wave wave,
-				double t1,
-				double t2) {
+		if (codaPick.startTime <= pPick.startTime) {
+			return;
+		}
 
-			int[] data = wave.buffer;
+		final SwingWorker worker = new SwingWorker() {
 
-			if (data == null || data.length == 0) {
-				return;
+			private double durationSec = Double.NaN;
+			private double maxAbsAmplitude = Double.NaN;
+			private String maxAbsTime = "";
+			private double peakToPeakAmplitude = Double.NaN;
+
+			public Object construct() {
+
+				Wave wave = parent.getWave(
+						pPick.startTime,
+						codaPick.startTime);
+
+				if (wave == null) {
+					return null;
+				}
+
+				calculateAmplitudeStats(
+						wave,
+						pPick.startTime,
+						codaPick.startTime);
+
+				return null;
 			}
 
-            double samplingRate = wave.getSamplingRate();
-            double waveStart = wave.getStartTime();
+			public void finished() {
 
-            if (samplingRate <= 0) {
-                return;
-            }
+				codaPick.durationSec = durationSec;
+				codaPick.maxAbsAmplitude = maxAbsAmplitude;
+				codaPick.maxAbsTime = maxAbsTime;
+				codaPick.peakToPeakAmplitude = peakToPeakAmplitude;
 
-            int i1 = (int) Math.max(
-                    0,
-                    Math.round((t1 - waveStart) * samplingRate));
+				getTagMenu().onAmplitudeCalculationFinished(eventId);
 
-            int i2 = (int) Math.min(
-                    data.length - 1,
-                    Math.round((t2 - waveStart) * samplingRate));
+				repaint();
+			}
 
-            if (i2 <= i1) {
-                return;
-            }
+			private void calculateAmplitudeStats(
+					Wave wave,
+					double t1,
+					double t2) {
 
-            double maxAbs = 0;
-            double min = Double.POSITIVE_INFINITY;
-            double max = Double.NEGATIVE_INFINITY;
+				int[] data = wave.buffer;
 
-            int maxAbsIndex = i1;
+				if (data == null || data.length == 0) {
+					return;
+				}
 
-            for (int i = i1; i <= i2; i++) {
+				double samplingRate = wave.getSamplingRate();
+				double waveStart = wave.getStartTime();
 
-                double v = data[i];
+				if (samplingRate <= 0) {
+					return;
+				}
 
-                if (Double.isNaN(v)) {
-                    continue;
-                }
+				int i1 = (int) Math.max(
+						0,
+						Math.round((t1 - waveStart) * samplingRate));
 
-                if (Math.abs(v) > maxAbs) {
-                    maxAbs = Math.abs(v);
-                    maxAbsIndex = i;
-                }
+				int i2 = (int) Math.min(
+						data.length - 1,
+						Math.round((t2 - waveStart) * samplingRate));
 
-                if (v < min) {
-                    min = v;
-                }
+				if (i2 <= i1) {
+					return;
+				}
 
-                if (v > max) {
-                    max = v;
-                }
-            }
+				double maxAbs = 0;
+				double min = Double.POSITIVE_INFINITY;
+				double max = Double.NEGATIVE_INFINITY;
 
-				durationSec = t2 - t1;
-				maxAbsAmplitude = maxAbs;
-				double tMax =
-						waveStart + maxAbsIndex / samplingRate;
-				maxAbsTime =
-						J2kSec.format(
-								"yyyy-MM-dd HH:mm:ss.SSS",
-								tMax);
-				peakToPeakAmplitude = max - min;
-        }
-    };
+				int maxAbsIndex = i1;
 
-    worker.start();
-}
+				for (int i = i1; i <= i2; i++) {
+
+					double v = data[i];
+
+					if (Double.isNaN(v)) {
+						continue;
+					}
+
+					if (Math.abs(v) > maxAbs) {
+						maxAbs = Math.abs(v);
+						maxAbsIndex = i;
+					}
+
+					if (v < min) {
+						min = v;
+					}
+
+					if (v > max) {
+						max = v;
+					}
+				}
+
+					durationSec = t2 - t1;
+					maxAbsAmplitude = maxAbs;
+					double tMax =
+							waveStart + maxAbsIndex / samplingRate;
+					maxAbsTime =
+							J2kSec.format(
+									"yyyy-MM-dd HH:mm:ss.SSS",
+									tMax);
+					peakToPeakAmplitude = max - min;
+			}
+		};
+
+		worker.start();
+	}
 
 	public double calculateDominantFrequencyForWindow(
 			double startTime,
@@ -1018,6 +1018,298 @@ public void calculateAmplitudeForEvent(final String eventId) {
 				samplingRate,
 				0.5,
 				20.0);
+	}
+
+	public double[] calculateHalfPowerFrequencyBandForWindow(
+			double startTime,
+			double endTime) {
+
+		Wave wave = parent.getWave(startTime, endTime);
+
+		if (wave == null) {
+			return new double[] { Double.NaN, Double.NaN, Double.NaN };
+		}
+
+		int[] data = wave.buffer;
+
+		if (data == null || data.length == 0) {
+			return new double[] { Double.NaN, Double.NaN, Double.NaN };
+		}
+
+		double samplingRate = wave.getSamplingRate();
+		double waveStart = wave.getStartTime();
+
+		if (samplingRate <= 0) {
+			return new double[] { Double.NaN, Double.NaN, Double.NaN };
+		}
+
+		int i1 = (int) Math.max(
+				0,
+				Math.round((startTime - waveStart) * samplingRate));
+
+		int i2 = (int) Math.min(
+				data.length - 1,
+				Math.round((endTime - waveStart) * samplingRate));
+
+		if (i2 <= i1) {
+			return new double[] { Double.NaN, Double.NaN, Double.NaN };
+		}
+
+		return calculateHalfPowerFrequencyBand(
+				data,
+				i1,
+				i2,
+				samplingRate,
+				0.5,
+				samplingRate / 2.0);
+	}
+	
+	private double[] calculateHalfPowerFrequencyBand(
+        int[] data,
+        int i1,
+        int i2,
+        double samplingRate,
+        double minFrequency,
+        double maxFrequency) {
+
+    if (data == null || data.length == 0) {
+        return new double[] { Double.NaN, Double.NaN, Double.NaN };
+    }
+
+    if (samplingRate <= 0) {
+        return new double[] { Double.NaN, Double.NaN, Double.NaN };
+    }
+
+    if (i2 <= i1) {
+        return new double[] { Double.NaN, Double.NaN, Double.NaN };
+    }
+
+    int n = i2 - i1 + 1;
+
+    if (n < 8) {
+        return new double[] { Double.NaN, Double.NaN, Double.NaN };
+    }
+
+    double[] x = new double[n];
+
+    for (int i = 0; i < n; i++) {
+        x[i] = data[i1 + i];
+    }
+
+    /*
+     * Pre-processing:
+     * 1. detrend
+     * 2. taper
+     * 3. high-pass above 0.5 Hz
+     */
+    detrendLinear(x);
+    applyCosineTaper(x, 0.05);
+    x = highPassFirstOrder(x, samplingRate, minFrequency);
+
+    int nFreq = n / 2;
+
+    double[] freq = new double[nFreq];
+    double[] power = new double[nFreq];
+
+    for (int k = 1; k < nFreq; k++) {
+
+        double f = k * samplingRate / n;
+
+        if (f < minFrequency || f > maxFrequency) {
+            freq[k] = f;
+            power[k] = 0.0;
+            continue;
+        }
+
+        double real = 0.0;
+        double imag = 0.0;
+
+        for (int i = 0; i < n; i++) {
+            double angle = -2.0 * Math.PI * k * i / n;
+            real += x[i] * Math.cos(angle);
+            imag += x[i] * Math.sin(angle);
+        }
+
+        freq[k] = f;
+        power[k] = real * real + imag * imag;
+    }
+
+    int peakIndex = -1;
+    double peakPower = -1.0;
+
+    for (int k = 1; k < nFreq; k++) {
+        if (freq[k] < minFrequency || freq[k] > maxFrequency) {
+            continue;
+        }
+
+        if (power[k] > peakPower) {
+            peakPower = power[k];
+            peakIndex = k;
+        }
+    }
+
+    if (peakIndex < 0 || peakPower <= 0) {
+        return new double[] { Double.NaN, Double.NaN, Double.NaN };
+    }
+
+    double halfPower = 0.5 * peakPower;
+
+    int left = peakIndex;
+
+    while (left > 1 && power[left] >= halfPower) {
+        left--;
+    }
+
+    int right = peakIndex;
+
+    while (right < nFreq - 1 && power[right] >= halfPower) {
+        right++;
+    }
+
+    double f1 = interpolateHalfPowerFrequency(
+            freq,
+            power,
+            left,
+            left + 1,
+            halfPower);
+
+    double f2 = freq[peakIndex];
+
+    double f3 = interpolateHalfPowerFrequency(
+            freq,
+            power,
+            right - 1,
+            right,
+            halfPower);
+
+    /*
+     * Safety check.
+     */
+    if (Double.isNaN(f1) || Double.isNaN(f2) || Double.isNaN(f3)) {
+        return new double[] { Double.NaN, f2, Double.NaN };
+    }
+
+    if (!(f1 <= f2 && f2 <= f3)) {
+        return new double[] { Double.NaN, f2, Double.NaN };
+    }
+
+    return new double[] { f1, f2, f3 };
+	}
+
+	private void detrendLinear(double[] x) {
+
+		if (x == null || x.length < 2) {
+			return;
+		}
+
+		int n = x.length;
+
+		double first = x[0];
+		double last = x[n - 1];
+
+		for (int i = 0; i < n; i++) {
+			double trend =
+					first
+					+ (last - first) * i / (double) (n - 1);
+
+			x[i] -= trend;
+		}
+	}
+
+	private void applyCosineTaper(double[] x, double fraction) {
+
+		if (x == null || x.length < 2) {
+			return;
+		}
+
+		int n = x.length;
+		int m = (int) Math.round(n * fraction);
+
+		if (m <= 0) {
+			return;
+		}
+
+		if (m * 2 > n) {
+			m = n / 2;
+		}
+
+		for (int i = 0; i < m; i++) {
+			double w =
+					0.5
+					* (1.0 - Math.cos(Math.PI * i / m));
+
+			x[i] *= w;
+			x[n - 1 - i] *= w;
+		}
+	}
+
+	private double[] highPassFirstOrder(
+			double[] x,
+			double samplingRate,
+			double cutoffHz) {
+
+		if (x == null || x.length == 0) {
+			return x;
+		}
+
+		if (samplingRate <= 0 || cutoffHz <= 0) {
+			return x;
+		}
+
+		double[] y = new double[x.length];
+
+		double dt = 1.0 / samplingRate;
+		double rc = 1.0 / (2.0 * Math.PI * cutoffHz);
+		double alpha = rc / (rc + dt);
+
+		y[0] = x[0];
+
+		for (int i = 1; i < x.length; i++) {
+			y[i] =
+					alpha
+					* (y[i - 1] + x[i] - x[i - 1]);
+		}
+
+		return y;
+	}
+	
+	private double interpolateHalfPowerFrequency(
+			double[] freq,
+			double[] power,
+			int i1,
+			int i2,
+			double targetPower) {
+
+		if (freq == null || power == null) {
+			return Double.NaN;
+		}
+
+		if (i1 < 0 || i2 < 0) {
+			return Double.NaN;
+		}
+
+		if (i1 >= freq.length || i2 >= freq.length) {
+			return Double.NaN;
+		}
+
+		double f1 = freq[i1];
+		double f2 = freq[i2];
+
+		double p1 = power[i1];
+		double p2 = power[i2];
+
+		if (Double.isNaN(f1) || Double.isNaN(f2)) {
+			return Double.NaN;
+		}
+
+		if (Math.abs(p2 - p1) < 1e-12) {
+			return f2;
+		}
+
+		return f1
+				+ (targetPower - p1)
+				* (f2 - f1)
+				/ (p2 - p1);
 	}
 
 	private double calculateDominantFrequency(
@@ -1079,8 +1371,6 @@ public void calculateAmplitudeForEvent(final String eventId) {
 
 		return bestFreq;
 	}
-
-
 
   private static final Color DARK_GREEN = new Color(0, 168, 0);
 
