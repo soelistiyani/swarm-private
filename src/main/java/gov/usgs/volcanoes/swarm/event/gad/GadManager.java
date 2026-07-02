@@ -913,7 +913,7 @@ public class GadManager {
 		Double sec) {
 
 	  Pattern p = Pattern.compile(
-		  "Date\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+Time\\s+(\\d+):(\\d+)");
+		  "Date\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+Time\\s+(\\d+)\\s*:\\s*(\\d+)");
 
 	  Matcher m = p.matcher(text);
 
