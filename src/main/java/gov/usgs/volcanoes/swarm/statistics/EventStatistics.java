@@ -3,6 +3,7 @@ package gov.usgs.volcanoes.swarm.statistics;
 public class EventStatistics {
 
     public String eventType;
+	public String note;
 
     public int count = 0;
 
@@ -15,8 +16,9 @@ public class EventStatistics {
     public double minDuration = Double.MAX_VALUE;
     public double maxDuration = -Double.MAX_VALUE;
 
-    public EventStatistics(String eventType) {
+    public EventStatistics(String eventType, String note) {
         this.eventType = eventType;
+		this.note = note;
     }
 
     public void add(CatalogEvent event) {
@@ -46,6 +48,7 @@ public class EventStatistics {
 
 		return new Object[] {
 			eventType,
+			note == null || note.length() == 0 ? "-" : note,
 			count,
 			format(minAmplitude),
 			format(maxAmplitude),

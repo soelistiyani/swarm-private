@@ -48,6 +48,17 @@ public class CatalogToolsMenu {
 			+ "dominantFrequencyHz,f1,f2,f3,"
 			+ "operator,note";
 
+	private static final String COUPLED_NOTE = "Coupled Events";
+	private static final String COUPLED_CATALOG_HEADER =
+			"eventId,originTime,station,channel,classification,note,"
+			+ "p1Time,p2Time,p3Time,endTime,"
+			+ "durationP2P1Sec,durationP3P2Sec,durationEndP1Sec,durationEndP2Sec,"
+			+ "peakToPeakP2P1,peakToPeakP3P2,peakToPeakEndP2,amplitudeRatio,"
+			+ "dominantFrequencyP2P1Hz,f1P2P1,f2P2P1,f3P2P1,"
+			+ "dominantFrequencyP3P2Hz,f1P3P2,f2P3P2,f3P3P2,"
+			+ "dominantFrequencyEndP2Hz,f1EndP2,f2EndP2,f3EndP2,"
+			+ "operator";
+
 	public CatalogToolsMenu(HelicorderViewPanel hvp, File taggerRootDir) {
 		this.hvp = hvp;
 		this.taggerRootDir = taggerRootDir;
@@ -286,6 +297,17 @@ public class CatalogToolsMenu {
 		}
 
 		rebuildCatalogFromTags(tags, writeXlsx);
+
+		ArrayList<File> coupledCsvFiles = new ArrayList<File>();
+		collectCoupledTaggerCsvFiles(dayTaggerDir, coupledCsvFiles);
+
+		ArrayList<TagData> coupledTags = new ArrayList<TagData>();
+
+		for (File csvFile : coupledCsvFiles) {
+			loadTagsFromFile(csvFile, coupledTags);
+		}
+
+		rebuildCoupledCatalogFromTags(coupledTags);
 	}
 
 	private void collectTaggerCsvFiles(File dir, ArrayList<File> files) {
@@ -304,6 +326,28 @@ public class CatalogToolsMenu {
 			} else if (f.isFile()
 					&& f.getName().toLowerCase().endsWith(".csv")
 					&& f.getName().startsWith("SwarmTagger_")) {
+
+				files.add(f);
+			}
+		}
+	}
+
+	private void collectCoupledTaggerCsvFiles(File dir, ArrayList<File> files) {
+
+		File[] list = dir.listFiles();
+
+		if (list == null) {
+			return;
+		}
+
+		for (File f : list) {
+
+			if (f.isDirectory()) {
+				collectCoupledTaggerCsvFiles(f, files);
+
+			} else if (f.isFile()
+					&& f.getName().toLowerCase().endsWith(".csv")
+					&& f.getName().startsWith("SwarmTaggerCoupled_")) {
 
 				files.add(f);
 			}
@@ -624,6 +668,9 @@ public class CatalogToolsMenu {
 			String time = ref == null ? "" : ref.getTimeString();
 			String station = ref == null ? "" : getStationCode(ref);
 			String classification = ref == null ? "" : ref.classification;
+			boolean skipMdFrequency =
+					EventClassificationRules
+							.skipsDurationMagnitudeAndFrequency(classification);
 			
 			if (classification == null || classification.trim().length() == 0) {
 			    warningCount++;
@@ -736,53 +783,55 @@ public class CatalogToolsMenu {
 							.append(eventId).append("\n");
 				}
 
-				if (Double.isNaN(endTag.dominantFrequencyHz)) {
-					warningCount++;
-					sb.append("[WARNING] Missing dominant frequency | ")
-							.append(time).append(" | ")
-							.append(station).append(" | ")
-							.append(eventId).append("\n");
-				}
-
-				if (!Double.isNaN(endTag.dominantFrequencyHz)
-						&& endTag.dominantFrequencyHz <= 0) {
-					warningCount++;
-					sb.append("[WARNING] Invalid dominant frequency | ")
-							.append(time).append(" | ")
-							.append(station).append(" | ")
-							.append(endTag.dominantFrequencyHz).append(" Hz | ")
-							.append(eventId).append("\n");
-				}
-				
-				if (Double.isNaN(endTag.f1)
-						|| Double.isNaN(endTag.f2)
-						|| Double.isNaN(endTag.f3)) {
-
-					warningCount++;
-					sb.append("[WARNING] Missing frequency band f1/f2/f3 | ")
-							.append(time).append(" | ")
-							.append(station).append(" | ")
-							.append(eventId).append("\n");
-				}
-
-				if (!Double.isNaN(endTag.f1)
-						&& !Double.isNaN(endTag.f2)
-						&& !Double.isNaN(endTag.f3)) {
-
-					if (!(endTag.f1 > 0
-							&& endTag.f2 > 0
-							&& endTag.f3 > 0
-							&& endTag.f1 <= endTag.f2
-							&& endTag.f2 <= endTag.f3)) {
-
+				if (!skipMdFrequency) {
+					if (Double.isNaN(endTag.dominantFrequencyHz)) {
 						warningCount++;
-						sb.append("[WARNING] Invalid frequency band f1/f2/f3 | ")
+						sb.append("[WARNING] Missing dominant frequency | ")
 								.append(time).append(" | ")
 								.append(station).append(" | ")
-								.append("f1=").append(endTag.f1).append(" Hz, ")
-								.append("f2=").append(endTag.f2).append(" Hz, ")
-								.append("f3=").append(endTag.f3).append(" Hz | ")
 								.append(eventId).append("\n");
+					}
+
+					if (!Double.isNaN(endTag.dominantFrequencyHz)
+							&& endTag.dominantFrequencyHz <= 0) {
+						warningCount++;
+						sb.append("[WARNING] Invalid dominant frequency | ")
+								.append(time).append(" | ")
+								.append(station).append(" | ")
+								.append(endTag.dominantFrequencyHz).append(" Hz | ")
+								.append(eventId).append("\n");
+					}
+					
+					if (Double.isNaN(endTag.f1)
+							|| Double.isNaN(endTag.f2)
+							|| Double.isNaN(endTag.f3)) {
+
+						warningCount++;
+						sb.append("[WARNING] Missing frequency band f1/f2/f3 | ")
+								.append(time).append(" | ")
+								.append(station).append(" | ")
+								.append(eventId).append("\n");
+					}
+
+					if (!Double.isNaN(endTag.f1)
+							&& !Double.isNaN(endTag.f2)
+							&& !Double.isNaN(endTag.f3)) {
+
+						if (!(endTag.f1 > 0
+								&& endTag.f2 > 0
+								&& endTag.f3 > 0
+								&& endTag.f1 <= endTag.f2
+								&& endTag.f2 <= endTag.f3)) {
+
+							warningCount++;
+							sb.append("[WARNING] Invalid frequency band f1/f2/f3 | ")
+									.append(time).append(" | ")
+									.append(station).append(" | ")
+									.append("f1=").append(endTag.f1).append(" Hz, ")
+									.append("f2=").append(endTag.f2).append(" Hz, ")
+									.append("f3=").append(endTag.f3).append(" Hz | ")
+									.append(eventId).append("\n");
+						}
 					}
 				}
 			}
@@ -986,18 +1035,27 @@ public class CatalogToolsMenu {
 
 			String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
 			String station = getStationCode(ref);
+			boolean skipMdFrequency =
+					EventClassificationRules
+							.skipsDurationMagnitudeAndFrequency(ref.classification);
 
 			double dominantFrequencyHz =
-					endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
+					endTag == null || skipMdFrequency
+							? Double.NaN : endTag.dominantFrequencyHz;
 
 			double f1 =
-					endTag == null ? Double.NaN : endTag.f1;
+					endTag == null || skipMdFrequency ? Double.NaN : endTag.f1;
 
 			double f2 =
-					endTag == null ? Double.NaN : endTag.f2;
+					endTag == null || skipMdFrequency ? Double.NaN : endTag.f2;
 
 			double f3 =
-					endTag == null ? Double.NaN : endTag.f3;
+					endTag == null || skipMdFrequency ? Double.NaN : endTag.f3;
+
+			String md =
+					endTag == null || skipMdFrequency ? ""
+							: DurationMagnitudeUtil.format(
+									DurationMagnitudeUtil.calculate(endTag.durationSec));
 
 			if (endTag != null) {
 			}
@@ -1012,7 +1070,7 @@ public class CatalogToolsMenu {
 					+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
-					+ csv(endTag == null ? "" : DurationMagnitudeUtil.format(DurationMagnitudeUtil.calculate(endTag.durationSec))) + ","
+					+ csv(md) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
 					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
@@ -1107,6 +1165,224 @@ public class CatalogToolsMenu {
 					"Error rebuilding catalog",
 					JOptionPane.ERROR_MESSAGE);
 		}
+	}
+
+	private void rebuildCoupledCatalogFromTags(ArrayList<TagData> tags) {
+
+		if (tags == null || tags.size() == 0) {
+			return;
+		}
+
+		Map<String, ArrayList<String>> linesByDayAll =
+				new LinkedHashMap<String, ArrayList<String>>();
+
+		Map<String, Map<String, ArrayList<String>>> linesByDayChannel =
+				new LinkedHashMap<String, Map<String, ArrayList<String>>>();
+
+		Map<String, ArrayList<TagData>> eventsById =
+				new LinkedHashMap<String, ArrayList<TagData>>();
+
+		for (TagData tag : tags) {
+			if (tag.eventId == null || tag.eventId.length() == 0) {
+				continue;
+			}
+
+			ArrayList<TagData> eventTags = eventsById.get(tag.eventId);
+
+			if (eventTags == null) {
+				eventTags = new ArrayList<TagData>();
+				eventsById.put(tag.eventId, eventTags);
+			}
+
+			eventTags.add(tag);
+		}
+
+		for (String eventId : eventsById.keySet()) {
+
+			ArrayList<TagData> eventTags = eventsById.get(eventId);
+
+			TagData classTag = null;
+			TagData p1 = null;
+			TagData p2 = null;
+			TagData p3 = null;
+			TagData end = null;
+
+			for (TagData tag : eventTags) {
+				if (!tag.isPhasePick()) {
+					classTag = tag;
+				}
+
+				if ("CP1".equalsIgnoreCase(tag.phase)) {
+					p1 = earliest(p1, tag);
+				} else if ("CP2".equalsIgnoreCase(tag.phase)) {
+					p2 = earliest(p2, tag);
+				} else if ("CP3".equalsIgnoreCase(tag.phase)) {
+					p3 = earliest(p3, tag);
+				} else if ("CEND".equalsIgnoreCase(tag.phase)) {
+					end = latest(end, tag);
+				}
+			}
+
+			if (p1 == null || p2 == null || end == null) {
+				continue;
+			}
+
+			TagData ref =
+					classTag != null ? classTag :
+					p1 != null ? p1 :
+					p2 != null ? p2 :
+					end;
+
+			String ymd = formatJ2k(p1.startTime, "yyyyMMdd");
+			String station = getStationCode(ref);
+			String channelGroup = getStationChannelNetworkLocationCode(ref.channel);
+
+			double durationP2P1 = p2.startTime - p1.startTime;
+			double durationP3P2 =
+					p3 == null ? Double.NaN : p3.startTime - p2.startTime;
+			double durationEndP1 = end.startTime - p1.startTime;
+			double durationEndP2 = end.startTime - p2.startTime;
+
+			double peakToPeakP2P1 = p2.peakToPeakAmplitude;
+			double peakToPeakP3P2 =
+					p3 == null ? Double.NaN : p3.peakToPeakAmplitude;
+			double peakToPeakEndP2 = end.peakToPeakAmplitude;
+
+			double denominator = peakToPeakP2P1;
+			double numerator =
+					p3 == null ? peakToPeakEndP2 : peakToPeakP3P2;
+			double amplitudeRatio =
+					Double.isNaN(numerator)
+							|| Double.isNaN(denominator)
+							|| denominator == 0.0
+							? Double.NaN : numerator / denominator;
+
+			String line =
+					csv(eventId) + ","
+					+ csv(p1.getTimeString()) + ","
+					+ csv(station) + ","
+					+ csv(ref.channel) + ","
+					+ csv(ref.classification) + ","
+					+ csv(COUPLED_NOTE) + ","
+					+ csv(p1.getTimeString()) + ","
+					+ csv(p2.getTimeString()) + ","
+					+ csv(p3 == null ? "" : p3.getTimeString()) + ","
+					+ csv(end.getTimeString()) + ","
+					+ csv(doubleString(durationP2P1)) + ","
+					+ csv(doubleString(durationP3P2)) + ","
+					+ csv(doubleString(durationEndP1)) + ","
+					+ csv(doubleString(durationEndP2)) + ","
+					+ csv(doubleString(peakToPeakP2P1)) + ","
+					+ csv(doubleString(peakToPeakP3P2)) + ","
+					+ csv(doubleString(peakToPeakEndP2)) + ","
+					+ csv(doubleString(amplitudeRatio)) + ","
+					+ csv(doubleString(p2.dominantFrequencyHz)) + ","
+					+ csv(doubleString(p2.f1)) + ","
+					+ csv(doubleString(p2.f2)) + ","
+					+ csv(doubleString(p2.f3)) + ","
+					+ csv(p3 == null ? "" : doubleString(p3.dominantFrequencyHz)) + ","
+					+ csv(p3 == null ? "" : doubleString(p3.f1)) + ","
+					+ csv(p3 == null ? "" : doubleString(p3.f2)) + ","
+					+ csv(p3 == null ? "" : doubleString(p3.f3)) + ","
+					+ csv(doubleString(end.dominantFrequencyHz)) + ","
+					+ csv(doubleString(end.f1)) + ","
+					+ csv(doubleString(end.f2)) + ","
+					+ csv(doubleString(end.f3)) + ","
+					+ csv(ref.operator);
+
+			ArrayList<String> allLines = linesByDayAll.get(ymd);
+
+			if (allLines == null) {
+				allLines = new ArrayList<String>();
+				linesByDayAll.put(ymd, allLines);
+			}
+
+			allLines.add(line);
+
+			Map<String, ArrayList<String>> channelMap =
+					linesByDayChannel.get(ymd);
+
+			if (channelMap == null) {
+				channelMap = new LinkedHashMap<String, ArrayList<String>>();
+				linesByDayChannel.put(ymd, channelMap);
+			}
+
+			ArrayList<String> channelLines = channelMap.get(channelGroup);
+
+			if (channelLines == null) {
+				channelLines = new ArrayList<String>();
+				channelMap.put(channelGroup, channelLines);
+			}
+
+			channelLines.add(line);
+		}
+
+		try {
+			for (String ymd : linesByDayAll.keySet()) {
+
+				String year = ymd.substring(0, 4);
+
+				File dayCatalogDir =
+						new File(
+								new File(
+										new File(taggerRootDir, "catalog"),
+										year),
+								ymd);
+
+				if (!dayCatalogDir.exists()) {
+					dayCatalogDir.mkdirs();
+				}
+
+				writeCatalogFile(
+						new File(
+								dayCatalogDir,
+								"Swarm_CoupledEventCatalog_" + ymd + "_ALL.csv"),
+						COUPLED_CATALOG_HEADER,
+						linesByDayAll.get(ymd));
+
+				File channelDir = new File(dayCatalogDir, "station");
+
+				if (!channelDir.exists()) {
+					channelDir.mkdirs();
+				}
+
+				Map<String, ArrayList<String>> channelMap =
+						linesByDayChannel.get(ymd);
+
+				for (String channelGroup : channelMap.keySet()) {
+					writeCatalogFile(
+							new File(
+									channelDir,
+									"Swarm_CoupledEventCatalog_"
+											+ ymd + "_" + channelGroup + ".csv"),
+							COUPLED_CATALOG_HEADER,
+							channelMap.get(channelGroup));
+				}
+			}
+
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					ex.getMessage(),
+					"Error rebuilding coupled catalog",
+					JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private static TagData earliest(TagData current, TagData candidate) {
+		if (current == null || candidate.startTime < current.startTime) {
+			return candidate;
+		}
+
+		return current;
+	}
+
+	private static TagData latest(TagData current, TagData candidate) {
+		if (current == null || candidate.startTime > current.startTime) {
+			return candidate;
+		}
+
+		return current;
 	}
 
 	public static void exportEventCatalogByDaySilent(
@@ -1224,18 +1500,27 @@ public class CatalogToolsMenu {
 
 			String ymd = formatJ2k(ref.startTime, "yyyyMMdd");
 			String station = getStationCode(ref);
+			boolean skipMdFrequency =
+					EventClassificationRules
+							.skipsDurationMagnitudeAndFrequency(ref.classification);
 
 			double dominantFrequencyHz =
-					endTag == null ? Double.NaN : endTag.dominantFrequencyHz;
+					endTag == null || skipMdFrequency
+							? Double.NaN : endTag.dominantFrequencyHz;
 
 			double f1 =
-					endTag == null ? Double.NaN : endTag.f1;
+					endTag == null || skipMdFrequency ? Double.NaN : endTag.f1;
 
 			double f2 =
-					endTag == null ? Double.NaN : endTag.f2;
+					endTag == null || skipMdFrequency ? Double.NaN : endTag.f2;
 
 			double f3 =
-					endTag == null ? Double.NaN : endTag.f3;
+					endTag == null || skipMdFrequency ? Double.NaN : endTag.f3;
+
+			String md =
+					endTag == null || skipMdFrequency ? ""
+							: DurationMagnitudeUtil.format(
+									DurationMagnitudeUtil.calculate(endTag.durationSec));
 
 			String line =
 					csv(eventId) + ","
@@ -1247,7 +1532,7 @@ public class CatalogToolsMenu {
 					+ csv(sTag == null ? "" : sTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : endTag.getTimeString()) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.durationSec)) + ","
-					+ csv(endTag == null ? "" : DurationMagnitudeUtil.format(DurationMagnitudeUtil.calculate(endTag.durationSec))) + ","
+					+ csv(md) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.maxAbsAmplitude)) + ","
 					+ csv(endTag == null ? "" : endTag.maxAbsTime) + ","
 					+ csv(endTag == null ? "" : doubleString(endTag.peakToPeakAmplitude)) + ","
@@ -1358,9 +1643,17 @@ public class CatalogToolsMenu {
 			File outFile,
 			ArrayList<String> lines) throws IOException {
 
+		writeCatalogFile(outFile, CATALOG_HEADER, lines);
+	}
+
+	private static void writeCatalogFile(
+			File outFile,
+			String header,
+			ArrayList<String> lines) throws IOException {
+
 		BufferedWriter bw = new BufferedWriter(new FileWriter(outFile));
 
-		bw.write(CATALOG_HEADER + "\n");
+		bw.write(header + "\n");
 
 		for (String line : lines) {
 			bw.write(line + "\n");
@@ -1533,6 +1826,34 @@ public class CatalogToolsMenu {
 		}
 
 		return sanitizeFileName(ch);
+	}
+
+	private static String getStationChannelNetworkLocationCode(String channel) {
+		if (channel == null || channel.trim().length() == 0) {
+			return "UNKNOWN_UNKNOWN_UNKNOWN_UNKNOWN";
+		}
+
+		String[] parts = channel.trim().split("[._]");
+
+		String net = "UNKNOWN";
+		String sta = sanitizeFileName(channel);
+		String loc = "UNKNOWN";
+		String cha = "UNKNOWN";
+
+		if (parts.length >= 5 && "UNKNOWN".equalsIgnoreCase(parts[0])) {
+			sta = sanitizeFileName(parts[1]);
+			cha = sanitizeFileName(parts[2]);
+			net = sanitizeFileName(parts[3]);
+			loc = sanitizeFileName(parts[4]);
+
+		} else if (parts.length >= 4) {
+			net = sanitizeFileName(parts[0]);
+			sta = sanitizeFileName(parts[1]);
+			loc = sanitizeFileName(parts[2]);
+			cha = sanitizeFileName(parts[3]);
+		}
+
+		return sta + "_" + cha + "_" + net + "_" + loc;
 	}
 
 	private static String sanitizeFileName(String s) {

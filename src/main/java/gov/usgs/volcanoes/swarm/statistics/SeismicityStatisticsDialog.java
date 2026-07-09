@@ -359,6 +359,7 @@ public class SeismicityStatisticsDialog extends JDialog {
 		// Table
 		String[] columns = {
 			"Event Type",
+			"Note",
 			"Count",
 			"Amp Min Count",
 			"Amp Max Count",

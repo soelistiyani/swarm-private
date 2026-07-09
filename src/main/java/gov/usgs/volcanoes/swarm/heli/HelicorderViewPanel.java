@@ -1020,6 +1020,67 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 				20.0);
 	}
 
+	public double calculatePeakToPeakAmplitudeForWindow(
+			double startTime,
+			double endTime) {
+
+		Wave wave = parent.getWave(startTime, endTime);
+
+		if (wave == null) {
+			return Double.NaN;
+		}
+
+		int[] data = wave.buffer;
+
+		if (data == null || data.length == 0) {
+			return Double.NaN;
+		}
+
+		double samplingRate = wave.getSamplingRate();
+		double waveStart = wave.getStartTime();
+
+		if (samplingRate <= 0) {
+			return Double.NaN;
+		}
+
+		int i1 = (int) Math.max(
+				0,
+				Math.round((startTime - waveStart) * samplingRate));
+
+		int i2 = (int) Math.min(
+				data.length - 1,
+				Math.round((endTime - waveStart) * samplingRate));
+
+		if (i2 <= i1) {
+			return Double.NaN;
+		}
+
+		double min = Double.POSITIVE_INFINITY;
+		double max = Double.NEGATIVE_INFINITY;
+
+		for (int i = i1; i <= i2; i++) {
+			double v = data[i];
+
+			if (Double.isNaN(v)) {
+				continue;
+			}
+
+			if (v < min) {
+				min = v;
+			}
+
+			if (v > max) {
+				max = v;
+			}
+		}
+
+		if (min == Double.POSITIVE_INFINITY || max == Double.NEGATIVE_INFINITY) {
+			return Double.NaN;
+		}
+
+		return max - min;
+	}
+
 	public double[] calculateHalfPowerFrequencyBandForWindow(
 			double startTime,
 			double endTime) {

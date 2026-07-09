@@ -253,6 +253,22 @@ public class TagData implements Comparator<TagData> {
 			return "S";
 		}
 
+		if ("CP1".equalsIgnoreCase(phase)) {
+			return "P1";
+		}
+
+		if ("CP2".equalsIgnoreCase(phase)) {
+			return "P2";
+		}
+
+		if ("CP3".equalsIgnoreCase(phase)) {
+			return "P3";
+		}
+
+		if ("CEND".equalsIgnoreCase(phase)) {
+			return "END";
+		}
+
 		if (isCoda()) {
 			return "END";
 		}
@@ -260,9 +276,26 @@ public class TagData implements Comparator<TagData> {
 		return phase;
 	}
 
-	private static String durationMagnitudeString(double durationSec) {
+	private static String durationMagnitudeString(
+			String classification,
+			String phase,
+			double durationSec) {
+
+		if (isCoupledPhaseName(phase)
+				|| EventClassificationRules
+						.skipsDurationMagnitudeAndFrequency(classification)) {
+			return "";
+		}
+
 		Double md = DurationMagnitudeUtil.calculate(durationSec);
 		return DurationMagnitudeUtil.format(md);
+	}
+
+	private static boolean isCoupledPhaseName(String phase) {
+		return "CP1".equalsIgnoreCase(phase)
+				|| "CP2".equalsIgnoreCase(phase)
+				|| "CP3".equalsIgnoreCase(phase)
+				|| "CEND".equalsIgnoreCase(phase);
 	}
 
 	public String toString() {
@@ -277,14 +310,24 @@ public class TagData implements Comparator<TagData> {
 				+ "," + safeCsv(operator)
 				+ "," + safeCsv(note)
 				+ "," + doubleString(durationSec)
-				+ "," + durationMagnitudeString(durationSec)
+				+ "," + durationMagnitudeString(classification, phase, durationSec)
 				+ "," + doubleString(maxAbsAmplitude)
 				+ "," + safeCsv(maxAbsTime)
 				+ "," + doubleString(peakToPeakAmplitude)
-				+ "," + doubleString(dominantFrequencyHz)
-				+ "," + doubleString(f1)
-				+ "," + doubleString(f2)
-				+ "," + doubleString(f3);
+				+ "," + frequencyString(dominantFrequencyHz)
+				+ "," + frequencyString(f1)
+				+ "," + frequencyString(f2)
+				+ "," + frequencyString(f3);
+	}
+
+	private String frequencyString(double value) {
+		if (!isCoupledPhaseName(phase)
+				&& EventClassificationRules
+						.skipsDurationMagnitudeAndFrequency(classification)) {
+			return "";
+		}
+
+		return doubleString(value);
 	}
 
 	public String getTimeString() {

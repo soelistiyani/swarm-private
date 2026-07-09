@@ -133,11 +133,19 @@ public class CatalogStatisticsEngine {
                 String station = get(p, col, "station");
 				String channel = get(p, col, "channel");
                 String eventType = get(p, col, "type");
+				String note = get(p, col, "note");
 
                 double amplitude = parseDouble(get(p, col, "amplitude"));
                 double duration = parseDouble(get(p, col, "duration"));
 
-                events.add(new CatalogEvent(time, station, channel, eventType, amplitude, duration));
+                events.add(new CatalogEvent(
+						time,
+						station,
+						channel,
+						eventType,
+						note,
+						amplitude,
+						duration));
 
 			} catch (Exception ex) {
 				System.out.println("[CatalogStatisticsEngine] Failed parse line:");
@@ -221,11 +229,16 @@ public class CatalogStatisticsEngine {
                 }
             }
 
-            EventStatistics stat = result.get(event.eventType);
+			String key =
+					event.eventType
+					+ "\t"
+					+ (event.note == null ? "" : event.note);
+
+            EventStatistics stat = result.get(key);
 
             if (stat == null) {
-                stat = new EventStatistics(event.eventType);
-                result.put(event.eventType, stat);
+                stat = new EventStatistics(event.eventType, event.note);
+                result.put(key, stat);
             }
 
             stat.add(event);
@@ -349,12 +362,19 @@ public class CatalogStatisticsEngine {
 				col.put("type", i);
 			}
 
+			if (h.equals("note") ||
+				h.equals("notes") ||
+				h.equals("catatan")) {
+				col.put("note", i);
+			}
+
 			// Priority:
 			// 1. peakToPeakAmplitude
 			// 2. maxAbsAmplitude
 			// 3. generic amplitude
 
-			if (h.equals("peaktopeakamplitude")) {
+			if (h.equals("peaktopeakamplitude")
+					|| h.equals("peaktopeakp2p1")) {
 
 				col.put("amplitude", i);
 			}
@@ -378,7 +398,8 @@ public class CatalogStatisticsEngine {
 			if (h.equals("duration") ||
 				h.equals("durasi") ||
 				h.equals("dur") ||
-				h.equals("durationsec")) {
+				h.equals("durationsec") ||
+				h.equals("durationendp1sec")) {
 				col.put("duration", i);
 			}
 		}

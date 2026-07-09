@@ -8,6 +8,7 @@ public class CatalogEvent {
     public String station;
 	public String channel;
     public String eventType;
+	public String note;
     public double amplitude;
     public double duration;
 	public double amplitudeUmPerSec;
@@ -17,6 +18,7 @@ public class CatalogEvent {
 		String station,
 		String channel,
 		String eventType,
+		String note,
 		double amplitude,
 		double duration) {
 
@@ -24,6 +26,7 @@ public class CatalogEvent {
 		this.station = station;
 		this.channel = channel;
 		this.eventType = eventType;
+		this.note = note;
 		this.amplitude = amplitude;
 		this.duration = duration;
 		this.amplitudeUmPerSec = amplitude;

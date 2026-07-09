@@ -43,6 +43,11 @@ import gov.usgs.volcanoes.core.time.J2kSec;
 public class TagMenu extends JPopupMenu {
 
     private static final String settingsFileName = "EventClassifications.config";
+	private static final String COUPLED_NOTE = "Coupled Events";
+	private static final String CP1 = "CP1";
+	private static final String CP2 = "CP2";
+	private static final String CP3 = "CP3";
+	private static final String CEND = "CEND";
     private static final long serialVersionUID = 8681764007165352268L;
 
     protected static final int transparency = 240;
@@ -149,6 +154,7 @@ public class TagMenu extends JPopupMenu {
 		createDeleteCurrentEventMenu();
 		this.addSeparator();
 		createPhasePickMenus();
+		createCoupledEventMenu();
 		createDeletePickMenu();
 		createClearMenu();
 		this.addSeparator();
@@ -324,6 +330,14 @@ public class TagMenu extends JPopupMenu {
 	}
 
 	private void ensureEventFileForTime(double j2kTime) {
+		ensureEventFileForTime(j2kTime, false);
+	}
+
+	private void ensureCoupledEventFileForTime(double j2kTime) {
+		ensureEventFileForTime(j2kTime, true);
+	}
+
+	private void ensureEventFileForTime(double j2kTime, boolean coupled) {
 
 		askOperatorName(false);
 
@@ -356,7 +370,14 @@ public class TagMenu extends JPopupMenu {
 			dayDir.mkdirs();
 		}
 
+		String filePrefix = coupled ? "SwarmTaggerCoupled_" : "SwarmTagger_";
+		String stationPart = coupled ? getStationChannelNetworkLocationCode() : station;
+
 		String op = sanitizeFileName(operatorName);
+		if (coupled) {
+			op = normalizeCoupledOperatorName(op);
+		}
+
 		if (op.length() == 0) {
 			op = "Unknown";
 		}
@@ -365,7 +386,7 @@ public class TagMenu extends JPopupMenu {
 		
 		File file = new File(
 				dayDir,
-				"SwarmTagger_" + ymd + "_" + station + "_" + op + ".csv");
+				filePrefix + ymd + "_" + stationPart + "_" + op + ".csv");
 
 		String newEventFileName = file.getAbsolutePath();
 
@@ -384,6 +405,69 @@ public class TagMenu extends JPopupMenu {
 				write();
 			}
 		}
+	}
+
+	private String getStationChannelNetworkLocationCode() {
+		String ch = hvp.getSettings().channel;
+
+		if (ch == null || ch.trim().length() == 0) {
+			return "UNKNOWN_UNKNOWN_UNKNOWN_UNKNOWN";
+		}
+
+		String[] parts = splitChannelParts(ch);
+
+		String net = "UNKNOWN";
+		String sta = sanitizeFileName(ch);
+		String loc = "UNKNOWN";
+		String cha = "UNKNOWN";
+
+		if (parts.length >= 5 && "UNKNOWN".equalsIgnoreCase(parts[0])) {
+			sta = sanitizeFileName(parts[1]);
+			cha = sanitizeFileName(parts[2]);
+			net = sanitizeFileName(parts[3]);
+			loc = sanitizeFileName(parts[4]);
+
+		} else if (parts.length >= 4) {
+			net = sanitizeFileName(parts[0]);
+			sta = sanitizeFileName(parts[1]);
+			loc = sanitizeFileName(parts[2]);
+			cha = sanitizeFileName(parts[3]);
+		}
+
+		return sta + "_" + cha + "_" + net + "_" + loc;
+	}
+
+	private String[] splitChannelParts(String channel) {
+		if (channel == null) {
+			return new String[0];
+		}
+
+		return channel.trim().split("[._]");
+	}
+
+	private String normalizeCoupledOperatorName(String op) {
+		if (op == null || op.length() == 0) {
+			return op;
+		}
+
+		String user = sanitizeFileName(SwarmConfig.getInstance().getUser());
+
+		if (user.length() > 0 && op.endsWith("_" + user)) {
+			return user;
+		}
+
+		if (op.indexOf("UNKNOWN") >= 0) {
+			String[] parts = op.split("_");
+
+			for (int i = parts.length - 1; i >= 0; i--) {
+				if (parts[i].length() > 0
+						&& !"UNKNOWN".equalsIgnoreCase(parts[i])) {
+					return parts[i];
+				}
+			}
+		}
+
+		return op;
 	}
 
 	private static String formatJ2k(double j2k, String pattern) {
@@ -537,6 +621,14 @@ public class TagMenu extends JPopupMenu {
 					}
 				}
 
+				if (isActiveCoupledTaggerFile()) {
+					if (!isCoupledEvent(data.eventId)) {
+						continue;
+					}
+				} else if (isCoupledEvent(data.eventId)) {
+					continue;
+				}
+
 				bw.write(data.toString() + "\n");
 			}
 
@@ -558,6 +650,35 @@ public class TagMenu extends JPopupMenu {
                     JOptionPane.ERROR_MESSAGE);
         }
     }
+
+	private boolean isActiveCoupledTaggerFile() {
+		if (eventFileName == null) {
+			return false;
+		}
+
+		return new File(eventFileName).getName().startsWith("SwarmTaggerCoupled_");
+	}
+
+	private boolean isCoupledPhase(String phase) {
+		return CP1.equalsIgnoreCase(phase)
+				|| CP2.equalsIgnoreCase(phase)
+				|| CP3.equalsIgnoreCase(phase)
+				|| CEND.equalsIgnoreCase(phase);
+	}
+
+	private boolean isCoupledEvent(String eventId) {
+		if (eventId == null || eventId.length() == 0) {
+			return false;
+		}
+
+		for (TagData tag : hvp.getTagData()) {
+			if (eventId.equals(tag.eventId) && isCoupledPhase(tag.phase)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	public void quickPick(String phase, double pickTime) {
 
@@ -733,6 +854,61 @@ public class TagMenu extends JPopupMenu {
 		phaseMenu.add(endItem);
 	}
 
+	private void createCoupledEventMenu() {
+
+		JMenu coupledMenu = new JMenu("Coupled Event");
+		this.add(coupledMenu);
+
+		addCoupledPickMenuItem(coupledMenu, "P1", CP1);
+		addCoupledPickMenuItem(coupledMenu, "P2", CP2);
+		addCoupledPickMenuItem(coupledMenu, "P3", CP3);
+		addCoupledPickMenuItem(coupledMenu, "END", CEND);
+
+		JMenu deleteMenu = new JMenu("Delete Pick");
+		coupledMenu.add(deleteMenu);
+
+		addCoupledDeleteMenuItem(deleteMenu, "Delete P1", CP1);
+		addCoupledDeleteMenuItem(deleteMenu, "Delete P2", CP2);
+		addCoupledDeleteMenuItem(deleteMenu, "Delete P3", CP3);
+		addCoupledDeleteMenuItem(deleteMenu, "Delete END", CEND);
+
+		JMenuItem deleteEvent = new JMenuItem("Delete Coupled Event");
+		deleteEvent.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deleteCoupledEvent();
+			}
+		});
+		coupledMenu.add(deleteEvent);
+	}
+
+	private void addCoupledPickMenuItem(
+			JMenu menu,
+			String label,
+			final String phase) {
+
+		JMenuItem item = new JMenuItem(label);
+		item.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				createCoupledPhasePick(phase);
+			}
+		});
+		menu.add(item);
+	}
+
+	private void addCoupledDeleteMenuItem(
+			JMenu menu,
+			String label,
+			final String phase) {
+
+		JMenuItem item = new JMenuItem(label);
+		item.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deleteCoupledPhasePick(phase);
+			}
+		});
+		menu.add(item);
+	}
+
 	private void createPMenu(JMenu parentMenu) {
 
 		JMenu pMenu = new JMenu("P");
@@ -796,6 +972,197 @@ public class TagMenu extends JPopupMenu {
 		double f1 = Double.NaN;
 		double f2 = Double.NaN;
 		double f3 = Double.NaN;
+	}
+
+	private void createCoupledPhasePick(String phase) {
+
+		ensureCoupledEventFileForTime(j2k);
+
+		String eventId = currentEventId;
+
+		if (eventId == null || eventId.trim().length() == 0) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Please select Event Classification first.",
+					"No Active Event",
+					JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
+		if (!isCoupledPickAllowed(eventId, phase)) {
+			return;
+		}
+
+		if (CP1.equalsIgnoreCase(phase)) {
+			Set<String> affectedYmds = new HashSet<String>();
+			affectedYmds.add(formatJ2k(j2k, "yyyyMMdd"));
+			deleteEventFromNormalTaggerFiles(eventId, affectedYmds);
+		}
+
+		String classification = findClassificationForEvent(eventId);
+
+		TagData tag = new TagData(
+				hvp.getSettings().channel,
+				j2k,
+				classification,
+				phase,
+				"",
+				"",
+				1,
+				eventId,
+				operatorName,
+				COUPLED_NOTE);
+
+		replaceSamePhasePick(tag);
+		populateCoupledMeasurementFields(eventId, tag);
+		markCoupledEventNote(eventId);
+		write();
+
+		if (CEND.equalsIgnoreCase(phase)) {
+			CatalogToolsMenu.rebuildCatalogForDaySilent(
+					hvp,
+					taggerRootDir,
+					activeFileYmd);
+			currentEventId = "";
+		}
+
+		repaintPanels();
+
+		setStatus(
+				"Coupled event saved | "
+				+ activeFileYmd);
+	}
+
+	private boolean isCoupledPickAllowed(String eventId, String phase) {
+
+		TagData p1 = findPhaseTag(eventId, CP1);
+		TagData p2 = findPhaseTag(eventId, CP2);
+		TagData p3 = findPhaseTag(eventId, CP3);
+
+		if (CP1.equalsIgnoreCase(phase)) {
+			return true;
+		}
+
+		if (CP2.equalsIgnoreCase(phase)) {
+			if (p1 == null) {
+				showMissingCoupledPick("P1", "P2");
+				return false;
+			}
+			if (j2k <= p1.startTime) {
+				showCoupledOrderWarning("P2", "P1");
+				return false;
+			}
+			return true;
+		}
+
+		if (CP3.equalsIgnoreCase(phase)) {
+			if (p2 == null) {
+				showMissingCoupledPick("P2", "P3");
+				return false;
+			}
+			if (j2k <= p2.startTime) {
+				showCoupledOrderWarning("P3", "P2");
+				return false;
+			}
+			return true;
+		}
+
+		if (CEND.equalsIgnoreCase(phase)) {
+			if (p2 == null) {
+				showMissingCoupledPick("P2", "END");
+				return false;
+			}
+
+			TagData previous = p3 != null ? p3 : p2;
+			String previousLabel = p3 != null ? "P3" : "P2";
+
+			if (j2k <= previous.startTime) {
+				showCoupledOrderWarning("END", previousLabel);
+				return false;
+			}
+			return true;
+		}
+
+		return false;
+	}
+
+	private void showMissingCoupledPick(String required, String phase) {
+		JOptionPane.showMessageDialog(
+				hvp,
+				"Please pick " + required
+						+ " before picking " + phase + ".",
+				"Missing Coupled Pick",
+				JOptionPane.WARNING_MESSAGE);
+	}
+
+	private void showCoupledOrderWarning(String phase, String previous) {
+		JOptionPane.showMessageDialog(
+				hvp,
+				phase + " must be after " + previous + ".",
+				"Invalid Coupled Pick Order",
+				JOptionPane.WARNING_MESSAGE);
+	}
+
+	private void markCoupledEventNote(String eventId) {
+		for (TagData tag : hvp.getTagData()) {
+			if (eventId.equals(tag.eventId)) {
+				tag.note = COUPLED_NOTE;
+			}
+		}
+	}
+
+	private void populateCoupledMeasurementFields(String eventId, TagData tag) {
+
+		if (tag == null || eventId == null) {
+			return;
+		}
+
+		TagData p1 = findPhaseTag(eventId, CP1);
+		TagData p2 = findPhaseTag(eventId, CP2);
+		TagData p3 = findPhaseTag(eventId, CP3);
+
+		if (CP2.equalsIgnoreCase(tag.phase) && p1 != null) {
+			populateWindowMeasurement(tag, p1.startTime, tag.startTime, false);
+
+		} else if (CP3.equalsIgnoreCase(tag.phase) && p2 != null) {
+			populateWindowMeasurement(tag, p2.startTime, tag.startTime, false);
+
+		} else if (CEND.equalsIgnoreCase(tag.phase) && p1 != null && p2 != null) {
+			populateWindowMeasurement(tag, p2.startTime, tag.startTime, true);
+			tag.durationSec = tag.startTime - p1.startTime;
+		}
+
+		if (p3 != null && CP3.equalsIgnoreCase(tag.phase)) {
+			tag.durationSec = tag.startTime - p2.startTime;
+		}
+	}
+
+	private void populateWindowMeasurement(
+			TagData tag,
+			double startTime,
+			double endTime,
+			boolean keepExistingDuration) {
+
+		if (endTime <= startTime) {
+			return;
+		}
+
+		if (!keepExistingDuration) {
+			tag.durationSec = endTime - startTime;
+		}
+
+		tag.peakToPeakAmplitude =
+				hvp.calculatePeakToPeakAmplitudeForWindow(startTime, endTime);
+
+		double[] band =
+				hvp.calculateHalfPowerFrequencyBandForWindow(startTime, endTime);
+
+		if (band != null && band.length >= 3) {
+			tag.f1 = band[0];
+			tag.f2 = band[1];
+			tag.f3 = band[2];
+			tag.dominantFrequencyHz = band[1];
+		}
 	}
 
 	private void createPhasePick(
@@ -881,7 +1248,11 @@ public class TagMenu extends JPopupMenu {
 			 */
 			endTag = findPhaseTag(eventId, "END");
 
-			if (endTag != null && pTag != null && endTag.startTime > pTag.startTime) {
+			if (endTag != null
+					&& pTag != null
+					&& endTag.startTime > pTag.startTime
+					&& !EventClassificationRules
+							.skipsDurationMagnitudeAndFrequency(classification)) {
 
 				double[] band =
 						hvp.calculateHalfPowerFrequencyBandForWindow(
@@ -1264,6 +1635,158 @@ public class TagMenu extends JPopupMenu {
 			}
 		}
 	}
+
+	private void deleteCoupledPhasePick(String phase) {
+
+		String eventId = getActiveOrNearestEventId();
+
+		if (eventId == null || eventId.length() == 0) {
+			JOptionPane.showMessageDialog(hvp, "No coupled event found near cursor.");
+			return;
+		}
+
+		TagData deleteTag = findPhaseTag(eventId, phase);
+
+		if (deleteTag == null) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"No " + coupledPhaseLabel(phase)
+							+ " pick found for this coupled event.");
+			return;
+		}
+
+		String[] phases = coupledDeleteCascade(phase);
+
+		int result = JOptionPane.showConfirmDialog(
+				hvp,
+				"Delete " + coupledPhaseLabel(phase)
+						+ " coupled pick?",
+				"Confirm Delete",
+				JOptionPane.YES_NO_OPTION);
+
+		if (result != JOptionPane.YES_OPTION) {
+			return;
+		}
+
+		Set<String> affectedYmds = getEventYmds(eventId);
+		removePhasesFromMemory(eventId, phases);
+
+		for (int i = 0; i < phases.length; i++) {
+			deletePhaseFromAllTaggerFiles(eventId, phases[i], affectedYmds);
+		}
+
+		repaintPanels();
+
+		for (String ymd : affectedYmds) {
+			CatalogToolsMenu.rebuildCatalogForDaySilent(
+					hvp,
+					taggerRootDir,
+					ymd);
+		}
+
+		setStatus(
+				"Coupled pick deleted | Catalog updated | "
+				+ affectedYmds.toString());
+	}
+
+	private String[] coupledDeleteCascade(String phase) {
+		if (CP1.equalsIgnoreCase(phase)) {
+			return new String[] { CP1, CP2, CP3, CEND };
+		}
+
+		if (CP2.equalsIgnoreCase(phase)) {
+			return new String[] { CP2, CP3, CEND };
+		}
+
+		if (CP3.equalsIgnoreCase(phase)) {
+			return new String[] { CP3, CEND };
+		}
+
+		return new String[] { CEND };
+	}
+
+	private String coupledPhaseLabel(String phase) {
+		if (CP1.equalsIgnoreCase(phase)) {
+			return "P1";
+		}
+		if (CP2.equalsIgnoreCase(phase)) {
+			return "P2";
+		}
+		if (CP3.equalsIgnoreCase(phase)) {
+			return "P3";
+		}
+		if (CEND.equalsIgnoreCase(phase)) {
+			return "END";
+		}
+		return phase;
+	}
+
+	private void deleteCoupledEvent() {
+
+		String eventId = getActiveOrNearestEventId();
+
+		if (eventId == null || eventId.length() == 0 || !isCoupledEvent(eventId)) {
+			JOptionPane.showMessageDialog(hvp, "No coupled event found near cursor.");
+			return;
+		}
+
+		int result = JOptionPane.showConfirmDialog(
+				hvp,
+				"Delete coupled event, classification tag, and all coupled picks?",
+				"Confirm Delete Coupled Event",
+				JOptionPane.YES_NO_OPTION);
+
+		if (result != JOptionPane.YES_OPTION) {
+			return;
+		}
+
+		Set<String> affectedYmds = getEventYmds(eventId);
+
+		ArrayList<TagData> removeList = new ArrayList<TagData>();
+
+		for (TagData tag : hvp.getTagData()) {
+			if (eventId.equals(tag.eventId)) {
+				removeList.add(tag);
+			}
+		}
+
+		hvp.getTagData().removeAll(removeList);
+		deleteEventFromAllTaggerFiles(eventId, affectedYmds);
+
+		if (eventId.equals(currentEventId)) {
+			currentEventId = "";
+		}
+
+		repaintPanels();
+
+		for (String ymd : affectedYmds) {
+			CatalogToolsMenu.rebuildCatalogForDaySilent(
+					hvp,
+					taggerRootDir,
+					ymd);
+		}
+
+		setStatus(
+				"Coupled event deleted | Catalog updated | "
+				+ affectedYmds.toString());
+	}
+
+	private Set<String> getEventYmds(String eventId) {
+		Set<String> affectedYmds = new HashSet<String>();
+
+		for (TagData tag : hvp.getTagData()) {
+			if (eventId.equals(tag.eventId)) {
+				affectedYmds.add(formatJ2k(tag.startTime, "yyyyMMdd"));
+			}
+		}
+
+		if (affectedYmds.size() == 0 && activeFileYmd != null
+				&& activeFileYmd.length() > 0) {
+			affectedYmds.add(activeFileYmd);
+		}
+
+		return affectedYmds;
+	}
 	
 	private void removePhaseFromTaggerFile(
 			File file,
@@ -1526,6 +2049,45 @@ public class TagMenu extends JPopupMenu {
 		}
 	}
 
+	private void deleteEventFromNormalTaggerFiles(
+			String eventId,
+			Set<String> affectedYmds) {
+
+		if (eventId == null || eventId.trim().length() == 0) {
+			return;
+		}
+
+		if (taggerRootDir == null || affectedYmds == null) {
+			return;
+		}
+
+		for (String ymd : affectedYmds) {
+			if (ymd == null || ymd.length() < 8) {
+				continue;
+			}
+
+			String year = ymd.substring(0, 4);
+
+			File dayTaggerDir =
+					new File(
+							new File(
+									new File(taggerRootDir, "tagger"),
+									year),
+							ymd);
+
+			if (!dayTaggerDir.exists() || !dayTaggerDir.isDirectory()) {
+				continue;
+			}
+
+			ArrayList<File> files = new ArrayList<File>();
+			collectNormalSwarmTaggerFiles(dayTaggerDir, files);
+
+			for (File file : files) {
+				removeEventIdFromTaggerFile(file, eventId);
+			}
+		}
+	}
+
 	private void collectSwarmTaggerFiles(
 			File dir,
 			ArrayList<File> files) {
@@ -1544,6 +2106,34 @@ public class TagMenu extends JPopupMenu {
 
 			if (f.isDirectory()) {
 				collectSwarmTaggerFiles(f, files);
+
+			} else if (f.isFile()
+					&& f.getName().toLowerCase().endsWith(".csv")
+					&& (f.getName().startsWith("SwarmTagger_")
+							|| f.getName().startsWith("SwarmTaggerCoupled_"))) {
+
+				files.add(f);
+			}
+		}
+	}
+
+	private void collectNormalSwarmTaggerFiles(
+			File dir,
+			ArrayList<File> files) {
+
+		if (dir == null || files == null) {
+			return;
+		}
+
+		File[] list = dir.listFiles();
+
+		if (list == null) {
+			return;
+		}
+
+		for (File f : list) {
+			if (f.isDirectory()) {
+				collectNormalSwarmTaggerFiles(f, files);
 
 			} else if (f.isFile()
 					&& f.getName().toLowerCase().endsWith(".csv")
