@@ -414,35 +414,39 @@ public class TagMenu extends JPopupMenu {
 			return "UNKNOWN_UNKNOWN_UNKNOWN_UNKNOWN";
 		}
 
-		String[] parts = splitChannelParts(ch);
+		String normalized = sanitizeFileName(ch);
+		String[] parts = normalized.split("_");
 
-		String net = "UNKNOWN";
-		String sta = sanitizeFileName(ch);
-		String loc = "UNKNOWN";
-		String cha = "UNKNOWN";
+		ArrayList<String> meaningful = new ArrayList<String>();
 
-		if (parts.length >= 5 && "UNKNOWN".equalsIgnoreCase(parts[0])) {
-			sta = sanitizeFileName(parts[1]);
-			cha = sanitizeFileName(parts[2]);
-			net = sanitizeFileName(parts[3]);
-			loc = sanitizeFileName(parts[4]);
+		for (int i = 0; i < parts.length; i++) {
+			String part = parts[i].trim();
 
-		} else if (parts.length >= 4) {
-			net = sanitizeFileName(parts[0]);
-			sta = sanitizeFileName(parts[1]);
-			loc = sanitizeFileName(parts[2]);
-			cha = sanitizeFileName(parts[3]);
+			if (part.length() == 0) {
+				continue;
+			}
+
+			if (meaningful.size() == 0 && "UNKNOWN".equalsIgnoreCase(part)) {
+				continue;
+			}
+
+			meaningful.add(part);
 		}
 
-		return sta + "_" + cha + "_" + net + "_" + loc;
-	}
-
-	private String[] splitChannelParts(String channel) {
-		if (channel == null) {
-			return new String[0];
+		while (meaningful.size() > 4
+				&& "UNKNOWN".equalsIgnoreCase(
+						meaningful.get(meaningful.size() - 1))) {
+			meaningful.remove(meaningful.size() - 1);
 		}
 
-		return channel.trim().split("[._]");
+		if (meaningful.size() >= 4) {
+			return meaningful.get(0)
+					+ "_" + meaningful.get(1)
+					+ "_" + meaningful.get(2)
+					+ "_" + meaningful.get(3);
+		}
+
+		return normalized;
 	}
 
 	private String normalizeCoupledOperatorName(String op) {

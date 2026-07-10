@@ -16,6 +16,7 @@ import gov.usgs.volcanoes.swarm.Icons;
 import gov.usgs.volcanoes.swarm.Metadata;
 import gov.usgs.volcanoes.swarm.SwarmConfig;
 import gov.usgs.volcanoes.swarm.SwingWorker;
+import gov.usgs.volcanoes.swarm.event.EventClassificationRules;
 import gov.usgs.volcanoes.swarm.event.TagData;
 import gov.usgs.volcanoes.swarm.event.TagMenu;
 import gov.usgs.volcanoes.swarm.options.SwarmOptions;
@@ -866,6 +867,13 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 			return;
 		}
 
+		final boolean limitAmplitudeWindow =
+				EventClassificationRules.allowsLongDuration(codaPick.classification);
+		final double amplitudeEndTime =
+				limitAmplitudeWindow
+						? Math.min(codaPick.startTime, pPick.startTime + 300.0)
+						: codaPick.startTime;
+
 		final SwingWorker worker = new SwingWorker() {
 
 			private double durationSec = Double.NaN;
@@ -877,7 +885,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 
 				Wave wave = parent.getWave(
 						pPick.startTime,
-						codaPick.startTime);
+						amplitudeEndTime);
 
 				if (wave == null) {
 					return null;
@@ -886,6 +894,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 				calculateAmplitudeStats(
 						wave,
 						pPick.startTime,
+						amplitudeEndTime,
 						codaPick.startTime);
 
 				return null;
@@ -906,7 +915,8 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 			private void calculateAmplitudeStats(
 					Wave wave,
 					double t1,
-					double t2) {
+					double amplitudeEnd,
+					double durationEnd) {
 
 				int[] data = wave.buffer;
 
@@ -927,7 +937,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 
 				int i2 = (int) Math.min(
 						data.length - 1,
-						Math.round((t2 - waveStart) * samplingRate));
+						Math.round((amplitudeEnd - waveStart) * samplingRate));
 
 				if (i2 <= i1) {
 					return;
@@ -961,7 +971,7 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 					}
 				}
 
-					durationSec = t2 - t1;
+					durationSec = durationEnd - t1;
 					maxAbsAmplitude = maxAbs;
 					double tMax =
 							waveStart + maxAbsIndex / samplingRate;

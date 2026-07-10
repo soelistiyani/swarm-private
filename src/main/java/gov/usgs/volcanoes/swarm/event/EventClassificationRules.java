@@ -12,6 +12,7 @@ public class EventClassificationRules {
 
 	private static final String SETTINGS_FILE_NAME = "EventClassifications.config";
 	private static final String SKIP_MD_FREQUENCY_FLAG = "skipmdfrequency";
+	private static final String ALLOW_LONG_DURATION_FLAG = "allowlongduration";
 
 	private static final Map<String, Set<String>> flagsByClassification =
 			new HashMap<String, Set<String>>();
@@ -61,6 +62,10 @@ public class EventClassificationRules {
 
 	public static boolean skipsDurationMagnitudeAndFrequency(String classification) {
 		return hasFlag(classification, SKIP_MD_FREQUENCY_FLAG);
+	}
+
+	public static boolean allowsLongDuration(String classification) {
+		return hasFlag(classification, ALLOW_LONG_DURATION_FLAG);
 	}
 
 	private static boolean hasFlag(String classification, String flag) {
