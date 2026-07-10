@@ -38,12 +38,14 @@ Core Swarm features:
 - Real-time helicorder and waveform viewing.
 - Waveform data access from Winston, Earthworm, SeedLink, FDSN web services, SEED/SAC, ASCII, and local files.
 - Time-domain and frequency-domain waveform tools.
+- Particle-motion view with incidence angle and azimuth shown in the plot information area.
 - Event picking, QuakeML workflows, Hypo71 support, GAD support, mapping, RSAM, and kiosk-style monitoring.
 
 PVMBG-oriented additions in this fork:
 
 - Event classifications loaded from `EventClassifications.config`.
 - SwarmTagger CSV output grouped by operator, day, station, and event ID.
+- Structured event observations for `mmi`, `audible`, and `visible` catalog fields.
 - Catalog rebuild and validation from tagger CSV files.
 - Optional classification flags such as `skipMdFrequency` and `allowLongDuration`.
 - Separate coupled-event picking workflow with `P1`, `P2`, optional `P3`, and `END`.
@@ -153,6 +155,18 @@ Normal event flow:
 
 For normal events, the `END` pick carries duration, amplitude, and frequency fields when those calculations are enabled for the classification.
 
+### Observations and Notes
+
+The tag menu includes an `Observation` submenu before `Add/Edit Note`. Observations are structured fields saved with the event and written to the normal catalog:
+
+| Observation | Stored field | User input |
+| --- | --- | --- |
+| `Felt` | `mmi` | Roman numerals `I` through `XII`; default `I`. |
+| `Audible` | `audible` | `Soft`, `Moderate`, or `Loud`; default `Soft`. |
+| `Visible` | `visible` | Free text, sanitized for CSV output. |
+
+One event can have all three observations. `Add/Edit Note` remains a separate free-text note field for operator comments.
+
 ## Coupled Events
 
 The tag menu includes a separate `Coupled Event` submenu. Coupled events still require the user to select a normal event classification first, such as `VT`, `LF`, `Lahar`, or another configured class.
@@ -209,7 +223,15 @@ Swarm_CoupledEventCatalog_YYYYMMDD_ALL.csv
 station/Swarm_CoupledEventCatalog_YYYYMMDD_STA_CHA_NET_LOC.csv
 ```
 
-Normal catalog rows include the standard `P`, `S`, `END`, duration, `Md`, amplitude, dominant frequency, and frequency-band fields.
+Normal catalog rows include the standard `P`, `S`, `END`, duration, `Md`, amplitude, dominant frequency, frequency-band fields, operator, note, and structured observation fields.
+
+Normal catalog observation columns:
+
+| Column | Meaning |
+| --- | --- |
+| `mmi` | Felt intensity as `I` through `XII`. Empty when no felt observation was entered. |
+| `audible` | Audible intensity: `Soft`, `Moderate`, or `Loud`. Empty when no audible observation was entered. |
+| `visible` | Visible observation text. Empty when no visible observation was entered. |
 
 Coupled catalog rows include:
 

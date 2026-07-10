@@ -46,7 +46,7 @@ public class CatalogToolsMenu {
 			"eventId,originTime,station,channel,classification,pTime,sTime,endTime,"
 			+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
 			+ "dominantFrequencyHz,f1,f2,f3,"
-			+ "operator,note";
+			+ "operator,note,mmi,audible,visible";
 
 	private static final String COUPLED_NOTE = "Coupled Events";
 	private static final String COUPLED_CATALOG_HEADER =
@@ -1081,7 +1081,10 @@ public class CatalogToolsMenu {
 					+ csv(doubleString(f2)) + ","
 					+ csv(doubleString(f3)) + ","
 					+ csv(ref.operator) + ","
-					+ csv(ref.note);
+					+ csv(ref.note) + ","
+					+ csv(ref.mmi) + ","
+					+ csv(ref.audible) + ","
+					+ csv(ref.visible);
 
 			ArrayList<String> allLines = linesByDayAll.get(ymd);
 
@@ -1543,7 +1546,10 @@ public class CatalogToolsMenu {
 					+ csv(doubleString(f2)) + ","
 					+ csv(doubleString(f3)) + ","
 					+ csv(ref.operator) + ","
-					+ csv(ref.note);
+					+ csv(ref.note) + ","
+					+ csv(ref.mmi) + ","
+					+ csv(ref.audible) + ","
+					+ csv(ref.visible);
 
 			ArrayList<String> allLines = linesByDayAll.get(ymd);
 

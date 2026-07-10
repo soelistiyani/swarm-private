@@ -11,7 +11,7 @@ import java.util.Comparator;
  * Tag data for helicorder event classification and phase picking.
  *
  * CSV format:
- * time,channel,classification,phase,onset,polarity,uncertaintyMs,eventId,operator,note,
+ * time,channel,classification,phase,onset,polarity,uncertaintyMs,eventId,operator,note,mmi,audible,visible,
  * durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,dominantFrequencyHz,f1,f2,f3
  *
  * Backward compatible with old format:
@@ -31,6 +31,9 @@ public class TagData implements Comparator<TagData> {
     public String eventId = "";
     public String operator = "";
     public String note = "";
+    public String mmi = "";
+    public String audible = "";
+    public String visible = "";
 
 	public double durationSec = Double.NaN;
 	public double maxAbsAmplitude = Double.NaN;
@@ -73,6 +76,36 @@ public class TagData implements Comparator<TagData> {
             String eventId,
             String operator,
             String note) {
+        this(
+                channel,
+                startTime,
+                classification,
+                phase,
+                onset,
+                polarity,
+                uncertaintyMs,
+                eventId,
+                operator,
+                note,
+                "",
+                "",
+                "");
+    }
+
+    public TagData(
+            String channel,
+            double startTime,
+            String classification,
+            String phase,
+            String onset,
+            String polarity,
+            int uncertaintyMs,
+            String eventId,
+            String operator,
+            String note,
+            String mmi,
+            String audible,
+            String visible) {
 
         this.channel = channel;
         this.startTime = startTime;
@@ -84,6 +117,9 @@ public class TagData implements Comparator<TagData> {
         this.eventId = safe(eventId);
         this.operator = safe(operator);
         this.note = safe(note);
+        this.mmi = safe(mmi);
+        this.audible = safe(audible);
+        this.visible = safe(visible);
 
         if (this.eventId.length() == 0) {
             this.eventId = makeEventId(channel, startTime);
@@ -130,41 +166,56 @@ public class TagData implements Comparator<TagData> {
 			note = data[9].trim();
 		}
 
+		int measurementOffset = 10;
+		if (data.length > 21) {
+			mmi = data[10].trim();
+			audible = data[11].trim();
+			visible = data[12].trim();
+			measurementOffset = 13;
+		}
+
 		/*
 		 * NEW AMPLITUDE FIELDS
 		 */
-		if (data.length > 10 && data[10].trim().length() > 0) {
-			durationSec = Double.parseDouble(data[10].trim());
+		if (data.length > measurementOffset && data[measurementOffset].trim().length() > 0) {
+			durationSec = Double.parseDouble(data[measurementOffset].trim());
 		}
 
-		if (data.length > 15) {
+		if (data.length > measurementOffset + 5) {
 			// Format baru dengan kolom Md.
-			if (data[12].trim().length() > 0) {
-				maxAbsAmplitude = Double.parseDouble(data[12].trim());
+			if (data[measurementOffset + 2].trim().length() > 0) {
+				maxAbsAmplitude = Double.parseDouble(data[measurementOffset + 2].trim());
 			}
 
-			maxAbsTime = data[13].trim();
+			maxAbsTime = data[measurementOffset + 3].trim();
 
-			if (data[14].trim().length() > 0) {
-				peakToPeakAmplitude = Double.parseDouble(data[14].trim());
+			if (data[measurementOffset + 4].trim().length() > 0) {
+				peakToPeakAmplitude = Double.parseDouble(data[measurementOffset + 4].trim());
 			}
 
-			if (data[15] != null && data[15].trim().length() > 0) {
-				dominantFrequencyHz = Double.parseDouble(data[15].trim());
+			if (data[measurementOffset + 5] != null
+					&& data[measurementOffset + 5].trim().length() > 0) {
+				dominantFrequencyHz = Double.parseDouble(data[measurementOffset + 5].trim());
 			}
 
 			// Format baru dengan half-power band:
-			// index 16=f1, 17=f2, 18=f3
-			if (data.length > 16 && data[16] != null && data[16].trim().length() > 0) {
-				f1 = Double.parseDouble(data[16].trim());
+			// index measurementOffset+6=f1, measurementOffset+7=f2, measurementOffset+8=f3
+			if (data.length > measurementOffset + 6
+					&& data[measurementOffset + 6] != null
+					&& data[measurementOffset + 6].trim().length() > 0) {
+				f1 = Double.parseDouble(data[measurementOffset + 6].trim());
 			}
 
-			if (data.length > 17 && data[17] != null && data[17].trim().length() > 0) {
-				f2 = Double.parseDouble(data[17].trim());
+			if (data.length > measurementOffset + 7
+					&& data[measurementOffset + 7] != null
+					&& data[measurementOffset + 7].trim().length() > 0) {
+				f2 = Double.parseDouble(data[measurementOffset + 7].trim());
 			}
 
-			if (data.length > 18 && data[18] != null && data[18].trim().length() > 0) {
-				f3 = Double.parseDouble(data[18].trim());
+			if (data.length > measurementOffset + 8
+					&& data[measurementOffset + 8] != null
+					&& data[measurementOffset + 8].trim().length() > 0) {
+				f3 = Double.parseDouble(data[measurementOffset + 8].trim());
 			}
 
 			// Backward compatibility:
@@ -176,20 +227,24 @@ public class TagData implements Comparator<TagData> {
 		} else {
 	
 			// Format lama tanpa kolom Md.
-			if (data.length > 11 && data[11].trim().length() > 0) {
-				maxAbsAmplitude = Double.parseDouble(data[11].trim());
+			if (data.length > measurementOffset + 1
+					&& data[measurementOffset + 1].trim().length() > 0) {
+				maxAbsAmplitude = Double.parseDouble(data[measurementOffset + 1].trim());
 			}
 
-			if (data.length > 12) {
-				maxAbsTime = data[12].trim();
+			if (data.length > measurementOffset + 2) {
+				maxAbsTime = data[measurementOffset + 2].trim();
 			}
 
-			if (data.length > 13 && data[13].trim().length() > 0) {
-				peakToPeakAmplitude = Double.parseDouble(data[13].trim());
+			if (data.length > measurementOffset + 3
+					&& data[measurementOffset + 3].trim().length() > 0) {
+				peakToPeakAmplitude = Double.parseDouble(data[measurementOffset + 3].trim());
 			}
 
-			if (data.length > 14 && data[14] != null && data[14].trim().length() > 0) {
-				dominantFrequencyHz = Double.parseDouble(data[14].trim());
+			if (data.length > measurementOffset + 4
+					&& data[measurementOffset + 4] != null
+					&& data[measurementOffset + 4].trim().length() > 0) {
+				dominantFrequencyHz = Double.parseDouble(data[measurementOffset + 4].trim());
 			}
 			
 			// Backward compatibility:
@@ -309,6 +364,9 @@ public class TagData implements Comparator<TagData> {
 				+ "," + safeCsv(eventId)
 				+ "," + safeCsv(operator)
 				+ "," + safeCsv(note)
+				+ "," + safeCsv(mmi)
+				+ "," + safeCsv(audible)
+				+ "," + safeCsv(visible)
 				+ "," + doubleString(durationSec)
 				+ "," + durationMagnitudeString(classification, phase, durationSec)
 				+ "," + doubleString(maxAbsAmplitude)

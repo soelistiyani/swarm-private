@@ -142,6 +142,28 @@ public class TagMenu extends JPopupMenu {
 
     private String operatorName = "";
     private String lastNote = "";
+    private String lastMmi = "";
+    private String lastAudible = "";
+    private String lastVisible = "";
+	private static final String[] MMI_CHOICES = {
+			"I",
+			"II",
+			"III",
+			"IV",
+			"V",
+			"VI",
+			"VII",
+			"VIII",
+			"IX",
+			"X",
+			"XI",
+			"XII"
+	};
+	private static final String[] AUDIBLE_CHOICES = {
+			"Soft",
+			"Moderate",
+			"Loud"
+	};
 
 	private void createMenu() {
 		createTaggerDirectoryMenu();
@@ -154,16 +176,19 @@ public class TagMenu extends JPopupMenu {
 		createDeleteCurrentEventMenu();
 		this.addSeparator();
 		createPhasePickMenus();
-		createCoupledEventMenu();
 		createDeletePickMenu();
 		createClearMenu();
+		this.addSeparator();
+		createCoupledEventMenu();
+		this.addSeparator();
+		createObservationMenu();
 		this.addSeparator();
 		createNoteMenu();
 	}
 
 	private void createNewSwarmTaggerMenu() {
 
-		JMenuItem createItem = new JMenuItem("Create New SwarmTagger File");
+		JMenuItem createItem = new JMenuItem("Create new swarm tagger file");
 
 		createItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
@@ -182,7 +207,7 @@ public class TagMenu extends JPopupMenu {
 	
 	private void createOpenExistingTaggerMenu() {
 
-    JMenuItem openItem = new JMenuItem("Open Existing SwarmTagger File");
+    JMenuItem openItem = new JMenuItem("Open existing swarmtagger file");
 
     openItem.addActionListener(new ActionListener() {
         public void actionPerformed(ActionEvent e) {
@@ -245,7 +270,7 @@ public class TagMenu extends JPopupMenu {
 }
 
 	private void createTaggerDirectoryMenu() {
-		JMenuItem dirItem = new JMenuItem("Set Tagger Directory");
+		JMenuItem dirItem = new JMenuItem("Set tagger directory");
 		dirItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				chooseTaggerDirectory();
@@ -603,7 +628,7 @@ public class TagMenu extends JPopupMenu {
 
 			bw.write(
 					"time,channel,classification,phase,onset,polarity,"
-					+ "uncertaintyMs,eventId,operator,note,"
+					+ "uncertaintyMs,eventId,operator,note,mmi,audible,visible,"
 					+ "durationSec,Md,maxAbsAmplitude,maxAbsTime,peakToPeakAmplitude,"
 					+ "dominantFrequencyHz,f1,f2,f3\n");
 
@@ -739,7 +764,7 @@ public class TagMenu extends JPopupMenu {
 	}
 
     private void createOperatorMenu() {
-        JMenuItem operatorItem = new JMenuItem("Set Operator Name");
+        JMenuItem operatorItem = new JMenuItem("Set operator name");
 
         operatorItem.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -770,6 +795,158 @@ public class TagMenu extends JPopupMenu {
         this.add(noteItem);
     }
 
+	private void createObservationMenu() {
+		JMenu observationMenu = new JMenu("Observation");
+
+		JMenuItem feltItem = new JMenuItem("Felt");
+		feltItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				String mmi = (String) JOptionPane.showInputDialog(
+						hvp,
+						"Select MMI:",
+						"Observation",
+						JOptionPane.QUESTION_MESSAGE,
+						null,
+						MMI_CHOICES,
+						lastMmi.length() == 0 ? MMI_CHOICES[0] : lastMmi);
+
+				if (mmi != null) {
+					applyObservation("mmi", mmi);
+				}
+			}
+		});
+		observationMenu.add(feltItem);
+
+		JMenuItem audibleItem = new JMenuItem("Audible");
+		audibleItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				String intensity = (String) JOptionPane.showInputDialog(
+						hvp,
+						"Select audible intensity:",
+						"Observation",
+						JOptionPane.QUESTION_MESSAGE,
+						null,
+						AUDIBLE_CHOICES,
+						lastAudible.length() == 0 ? AUDIBLE_CHOICES[0] : lastAudible);
+
+				if (intensity != null) {
+					applyObservation("audible", intensity);
+				}
+			}
+		});
+		observationMenu.add(audibleItem);
+
+		JMenuItem visibleItem = new JMenuItem("Visible");
+		visibleItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				String input = JOptionPane.showInputDialog(
+						hvp,
+						"Visible observation:",
+						lastVisible);
+
+				if (input != null && input.trim().length() > 0) {
+					applyObservation("visible", sanitizeNote(input.trim()));
+				}
+			}
+		});
+		observationMenu.add(visibleItem);
+
+		this.add(observationMenu);
+	}
+
+	private void applyObservation(String field, String value) {
+		if (field == null || value == null || value.trim().length() == 0) {
+			return;
+		}
+
+		value = sanitizeNote(value.trim());
+		setLastObservation(field, value);
+		String eventId = getActiveOrNearestEventId();
+
+		if (eventId == null || eventId.length() == 0) {
+			setStatus("Observation set for next event | " + field + ": " + value);
+			return;
+		}
+
+		Set<String> affectedYmds = new HashSet<String>();
+
+		for (TagData tag : hvp.getTagData()) {
+			if (eventId.equals(tag.eventId)) {
+				setObservationField(tag, field, value);
+				affectedYmds.add(formatJ2k(tag.startTime, "yyyyMMdd"));
+			}
+		}
+
+		updateEventObservationInTaggerFiles(eventId, field, value, affectedYmds);
+		write();
+
+		for (String ymd : affectedYmds) {
+			CatalogToolsMenu.rebuildCatalogForDaySilent(
+					hvp,
+					taggerRootDir,
+					ymd);
+		}
+
+		repaintPanels();
+		setStatus("Observation saved | Catalog updated | " + field + ": " + value);
+	}
+
+	private void setLastObservation(String field, String value) {
+		if ("mmi".equalsIgnoreCase(field)) {
+			lastMmi = value;
+		} else if ("audible".equalsIgnoreCase(field)) {
+			lastAudible = value;
+		} else if ("visible".equalsIgnoreCase(field)) {
+			lastVisible = value;
+		}
+	}
+
+	private void setObservationField(TagData tag, String field, String value) {
+		if (tag == null) {
+			return;
+		}
+		if ("mmi".equalsIgnoreCase(field)) {
+			tag.mmi = value;
+		} else if ("audible".equalsIgnoreCase(field)) {
+			tag.audible = value;
+		} else if ("visible".equalsIgnoreCase(field)) {
+			tag.visible = value;
+		}
+	}
+
+	private void applyLastObservations(TagData tag) {
+		if (tag == null) {
+			return;
+		}
+		tag.mmi = lastMmi;
+		tag.audible = lastAudible;
+		tag.visible = lastVisible;
+	}
+
+	private void applyEventObservations(TagData tag, String eventId) {
+		if (tag == null) {
+			return;
+		}
+
+		for (TagData existing : hvp.getTagData()) {
+			if (eventId != null && eventId.equals(existing.eventId)) {
+				tag.mmi = existing.mmi;
+				tag.audible = existing.audible;
+				tag.visible = existing.visible;
+				return;
+			}
+		}
+
+		applyLastObservations(tag);
+	}
+
+	private String sanitizeNote(String note) {
+		if (note == null) {
+			return "";
+		}
+		return note.replace(",", ";").replace("\n", " ").replace("\r", " ").trim();
+	}
+
 	private void createResetEventMenu() {
 		JMenuItem resetItem = new JMenuItem("Reset Active Event");
 		resetItem.addActionListener(new ActionListener() {
@@ -786,7 +963,7 @@ public class TagMenu extends JPopupMenu {
 
 	private void createClassificationMenus() {
 
-		JMenu classMenu = new JMenu("Event Classification");
+		JMenu classMenu = new JMenu("Event classification");
 		this.add(classMenu);
 
 		for (final String c : classifications) {
@@ -813,6 +990,7 @@ public class TagMenu extends JPopupMenu {
 							currentEventId,
 							operatorName,
 							lastNote);
+					applyLastObservations(tag);
 					hvp.getTagData().add(tag);
 					repaintPanels();
 					write();
@@ -824,7 +1002,7 @@ public class TagMenu extends JPopupMenu {
 
 	private void createPhasePickMenus() {
 
-		JMenu phaseMenu = new JMenu("Phase Pick");
+		JMenu phaseMenu = new JMenu("Phase pick");
 		this.add(phaseMenu);
 
 		/*
@@ -860,7 +1038,7 @@ public class TagMenu extends JPopupMenu {
 
 	private void createCoupledEventMenu() {
 
-		JMenu coupledMenu = new JMenu("Coupled Event");
+		JMenu coupledMenu = new JMenu("Coupled event");
 		this.add(coupledMenu);
 
 		addCoupledPickMenuItem(coupledMenu, "P1", CP1);
@@ -868,7 +1046,7 @@ public class TagMenu extends JPopupMenu {
 		addCoupledPickMenuItem(coupledMenu, "P3", CP3);
 		addCoupledPickMenuItem(coupledMenu, "END", CEND);
 
-		JMenu deleteMenu = new JMenu("Delete Pick");
+		JMenu deleteMenu = new JMenu("Delete pick");
 		coupledMenu.add(deleteMenu);
 
 		addCoupledDeleteMenuItem(deleteMenu, "Delete P1", CP1);
@@ -1017,6 +1195,7 @@ public class TagMenu extends JPopupMenu {
 				operatorName,
 				COUPLED_NOTE);
 
+		applyEventObservations(tag, eventId);
 		replaceSamePhasePick(tag);
 		populateCoupledMeasurementFields(eventId, tag);
 		markCoupledEventNote(eventId);
@@ -1218,6 +1397,7 @@ public class TagMenu extends JPopupMenu {
 				operatorName,
 				lastNote);
 
+		applyEventObservations(tag, eventId);
 		replaceSamePhasePick(tag);
 
 		if ("END".equalsIgnoreCase(phase)) {
@@ -1429,7 +1609,7 @@ public class TagMenu extends JPopupMenu {
 
 	private void createDeletePickMenu() {
 
-		JMenu deleteMenu = new JMenu("Delete Phase Pick");
+		JMenu deleteMenu = new JMenu("Delete phase pick");
 
 		JMenuItem deleteP = new JMenuItem("Delete P");
 		deleteP.addActionListener(new ActionListener() {
@@ -1932,7 +2112,7 @@ public class TagMenu extends JPopupMenu {
 
 	private void createDeleteCurrentEventMenu() {
 
-		JMenuItem deleteEvent = new JMenuItem("Delete Current Event");
+		JMenuItem deleteEvent = new JMenuItem("Delete current event");
 
 		deleteEvent.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
@@ -2089,6 +2269,118 @@ public class TagMenu extends JPopupMenu {
 			for (File file : files) {
 				removeEventIdFromTaggerFile(file, eventId);
 			}
+		}
+	}
+
+	private void updateEventObservationInTaggerFiles(
+			String eventId,
+			String field,
+			String value,
+			Set<String> affectedYmds) {
+
+		if (eventId == null || eventId.trim().length() == 0) {
+			return;
+		}
+
+		if (taggerRootDir == null || affectedYmds == null || affectedYmds.size() == 0) {
+			return;
+		}
+
+		for (String ymd : affectedYmds) {
+			if (ymd == null || ymd.length() < 8) {
+				continue;
+			}
+
+			String year = ymd.substring(0, 4);
+
+			File dayTaggerDir =
+					new File(
+							new File(
+									new File(taggerRootDir, "tagger"),
+									year),
+							ymd);
+
+			if (!dayTaggerDir.exists() || !dayTaggerDir.isDirectory()) {
+				continue;
+			}
+
+			ArrayList<File> files = new ArrayList<File>();
+			collectNormalSwarmTaggerFiles(dayTaggerDir, files);
+
+			for (File file : files) {
+				updateEventObservationInTaggerFile(file, eventId, field, value);
+			}
+		}
+	}
+
+	private void updateEventObservationInTaggerFile(
+			File file,
+			String eventId,
+			String field,
+			String value) {
+
+		if (file == null || eventId == null) {
+			return;
+		}
+
+		ArrayList<String> updatedLines = new ArrayList<String>();
+		boolean changed = false;
+
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(file));
+			String line;
+
+			while ((line = br.readLine()) != null) {
+
+				if (line.trim().length() == 0) {
+					continue;
+				}
+
+				if (line.toLowerCase().startsWith("time,")) {
+					updatedLines.add(line);
+					continue;
+				}
+
+				try {
+					TagData tag = new TagData(line);
+
+					if (eventId.equals(tag.eventId)) {
+						setObservationField(tag, field, value);
+						updatedLines.add(tag.toString());
+						changed = true;
+					} else {
+						updatedLines.add(line);
+					}
+
+				} catch (ParseException ex) {
+					updatedLines.add(line);
+				}
+			}
+
+			br.close();
+
+			if (!changed) {
+				return;
+			}
+
+			BufferedWriter bw = new BufferedWriter(new FileWriter(file, false));
+
+			for (String updatedLine : updatedLines) {
+				bw.write(updatedLine);
+				bw.write("\n");
+			}
+
+			bw.close();
+
+		} catch (IOException ex) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Failed to update observation in tagger file:\n"
+					+ file.getAbsolutePath()
+					+ "\n\n"
+					+ ex.getMessage(),
+					"Observation Warning",
+					JOptionPane.WARNING_MESSAGE);
 		}
 	}
 

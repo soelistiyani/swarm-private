@@ -134,6 +134,9 @@ public class CatalogStatisticsEngine {
 				String channel = get(p, col, "channel");
                 String eventType = get(p, col, "type");
 				String note = get(p, col, "note");
+				String mmi = get(p, col, "mmi");
+				String audible = get(p, col, "audible");
+				String visible = get(p, col, "visible");
 
                 double amplitude = parseDouble(get(p, col, "amplitude"));
                 double duration = parseDouble(get(p, col, "duration"));
@@ -144,6 +147,9 @@ public class CatalogStatisticsEngine {
 						channel,
 						eventType,
 						note,
+						mmi,
+						audible,
+						visible,
 						amplitude,
 						duration));
 
@@ -366,6 +372,18 @@ public class CatalogStatisticsEngine {
 				h.equals("notes") ||
 				h.equals("catatan")) {
 				col.put("note", i);
+			}
+
+			if (h.equals("mmi")) {
+				col.put("mmi", i);
+			}
+
+			if (h.equals("audible")) {
+				col.put("audible", i);
+			}
+
+			if (h.equals("visible")) {
+				col.put("visible", i);
 			}
 
 			// Priority:

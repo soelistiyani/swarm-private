@@ -56,6 +56,8 @@ import org.slf4j.LoggerFactory;
 public class WaveViewPanel extends JComponent {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(WaveViewPanel.class);
+  private static final int MIN_POLARIZATION_SAMPLES = 3;
+  private static final int POLARIZATION_ITERATIONS = 20;
   protected static NumberFormat numberFormat = NumberFormat.getInstance();
   public static final long serialVersionUID = -1;
   protected static SwarmConfig swarmConfig;
@@ -1481,12 +1483,164 @@ public class WaveViewPanel extends JComponent {
       particleMotionRenderer.setDate(J2kSec.asDate(startTime));
     }
     plot.addRenderer(particleMotionRenderer);
+
+    Polarization polarization = getPolarization(data.get(orientationType[2]),
+        data.get(orientationType[1]), data.get(orientationType[0]));
+    if (polarization != null) {
+      int[] labelLocation = getParticleMotionInfoLabelLocation();
+      TextRenderer incidenceRenderer = new TextRenderer(labelLocation[0], labelLocation[1],
+          String.format("Incidence: %.0f deg", polarization.incidence));
+      incidenceRenderer.color = Color.red;
+      plot.addRenderer(incidenceRenderer);
+
+      TextRenderer azimuthRenderer = new TextRenderer(labelLocation[0],
+          labelLocation[1] + getParticleMotionFontSize(),
+          String.format("Azimuth: %.0f deg", polarization.azimuth));
+      azimuthRenderer.color = Color.red;
+      plot.addRenderer(azimuthRenderer);
+    }
+
     if (useFilterLabel && settings.filterOn) {
       plot.addRenderer(getFilterLabel(getWidth() - rightWidth, getHeight() - bottomHeight,
           TextRenderer.RIGHT, TextRenderer.BOTTOM));
     }
 
     translation = null;
+  }
+
+  private int[] getParticleMotionInfoLabelLocation() {
+    int fontSize = getParticleMotionFontSize();
+    int plotSize = this.getHeight() - fontSize * 2;
+    int graphWidth = this.getWidth() - rightWidth - xOffset;
+    int gap = (graphWidth - 3 * plotSize) / 8;
+    int x = gap + 3 * (plotSize + 2 * gap);
+    int numberRepresentsY = fontSize + plotSize / 2;
+    return new int[] {x, numberRepresentsY - 3 * fontSize};
+  }
+
+  private int getParticleMotionFontSize() {
+    return getFont() == null ? 12 : getFont().getSize();
+  }
+
+  /**
+   * Estimate principal polarization from east, north, and vertical component data.
+   * 
+   * @param east east component
+   * @param north north component
+   * @param vertical vertical component
+   * @return polarization angles, or null when insufficient data are available
+   */
+  private Polarization getPolarization(double[] east, double[] north, double[] vertical) {
+    if (east == null || north == null || vertical == null) {
+      return null;
+    }
+
+    int length = Math.min(east.length, Math.min(north.length, vertical.length));
+    if (length < MIN_POLARIZATION_SAMPLES) {
+      return null;
+    }
+
+    double meanE = 0;
+    double meanN = 0;
+    double meanZ = 0;
+    int count = 0;
+    for (int i = 0; i < length; i++) {
+      if (isFinite(east[i]) && isFinite(north[i]) && isFinite(vertical[i])) {
+        meanE += east[i];
+        meanN += north[i];
+        meanZ += vertical[i];
+        count++;
+      }
+    }
+    if (count < MIN_POLARIZATION_SAMPLES) {
+      return null;
+    }
+
+    meanE /= count;
+    meanN /= count;
+    meanZ /= count;
+
+    double[][] covariance = new double[3][3];
+    for (int i = 0; i < length; i++) {
+      if (!isFinite(east[i]) || !isFinite(north[i]) || !isFinite(vertical[i])) {
+        continue;
+      }
+      double e = east[i] - meanE;
+      double nn = north[i] - meanN;
+      double z = vertical[i] - meanZ;
+      covariance[0][0] += e * e;
+      covariance[0][1] += e * nn;
+      covariance[0][2] += e * z;
+      covariance[1][1] += nn * nn;
+      covariance[1][2] += nn * z;
+      covariance[2][2] += z * z;
+    }
+
+    covariance[1][0] = covariance[0][1];
+    covariance[2][0] = covariance[0][2];
+    covariance[2][1] = covariance[1][2];
+
+    double[] vector = getPrincipalVector(covariance);
+    double norm = Math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+    if (norm == 0 || !isFinite(norm)) {
+      return null;
+    }
+
+    double eastComponent = vector[0] / norm;
+    double northComponent = vector[1] / norm;
+    double verticalComponent = vector[2] / norm;
+    double horizontal = Math.sqrt(eastComponent * eastComponent + northComponent * northComponent);
+    double incidence = Math.toDegrees(Math.atan2(horizontal, Math.abs(verticalComponent)));
+    double azimuth = Math.toDegrees(Math.atan2(eastComponent, northComponent));
+    if (azimuth < 0) {
+      azimuth += 180;
+    }
+    if (azimuth >= 180) {
+      azimuth -= 180;
+    }
+
+    return new Polarization(incidence, azimuth);
+  }
+
+  private double[] getPrincipalVector(double[][] matrix) {
+    double[] vector = getInitialPrincipalVector(matrix);
+    for (int i = 0; i < POLARIZATION_ITERATIONS; i++) {
+      double e = matrix[0][0] * vector[0] + matrix[0][1] * vector[1] + matrix[0][2] * vector[2];
+      double n = matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2];
+      double z = matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2];
+      double norm = Math.sqrt(e * e + n * n + z * z);
+      if (norm == 0 || !isFinite(norm)) {
+        return new double[] {0, 0, 0};
+      }
+      vector[0] = e / norm;
+      vector[1] = n / norm;
+      vector[2] = z / norm;
+    }
+    return vector;
+  }
+
+  private double[] getInitialPrincipalVector(double[][] matrix) {
+    if (matrix[1][1] > matrix[0][0] && matrix[1][1] >= matrix[2][2]) {
+      return new double[] {0, 1, 0};
+    }
+    if (matrix[2][2] > matrix[0][0] && matrix[2][2] > matrix[1][1]) {
+      return new double[] {0, 0, 1};
+    }
+    return new double[] {1, 0, 0};
+  }
+
+  private boolean isFinite(double value) {
+    return !Double.isNaN(value) && !Double.isInfinite(value);
+  }
+
+  private static class Polarization {
+    final double incidence;
+    final double azimuth;
+
+    Polarization(double incidence, double azimuth) {
+      this.incidence = incidence;
+      this.azimuth = azimuth;
+    }
   }
 
   /**
