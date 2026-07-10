@@ -1480,6 +1480,15 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
   }
 
 	private void drawPickedDuration(Graphics2D g2, double t1, double t2, Color color) {
+		drawPickedDuration(g2, t1, t2, color, false);
+	}
+
+	private void drawPickedDuration(
+			Graphics2D g2,
+			double t1,
+			double t2,
+			Color color,
+			boolean hatched) {
 
 		if (Double.isNaN(t1) || Double.isNaN(t2) || t2 <= t1) {
 			return;
@@ -1548,7 +1557,40 @@ public class HelicorderViewPanel extends JComponent implements SwarmOptionsListe
 					color.getBlue(),
 					180));
 			g2.fillRect(x, y, w, h);
+
+			if (hatched) {
+				drawDurationHatch(g2, x, y, w, h);
+			}
 		}
+	}
+
+	private void drawDurationHatch(Graphics2D g2, int x, int y, int w, int h) {
+		Color oldColor = g2.getColor();
+
+		g2.setColor(new Color(0, 0, 0, 120));
+
+		int spacing = 8;
+		for (int dx = -h; dx < w; dx += spacing) {
+			int x1 = x + dx;
+			int y1 = y + h;
+			int x2 = x + dx + h;
+			int y2 = y;
+
+			if (x1 < x) {
+				y1 -= x - x1;
+				x1 = x;
+			}
+			if (x2 > x + w) {
+				y2 += x2 - (x + w);
+				x2 = x + w;
+			}
+
+			if (y1 >= y && y2 <= y + h) {
+				g2.drawLine(x1, y1, x2, y2);
+			}
+		}
+
+		g2.setColor(oldColor);
 	}
 
 	private int getHelicorderRowForTime(double t, double minTime, double timeChunk) {
@@ -1584,6 +1626,8 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
 
 		Map<String, TagData> pPicks = new HashMap<String, TagData>();
 		Map<String, TagData> endPicks = new HashMap<String, TagData>();
+		Map<String, TagData> coupledStartPicks = new HashMap<String, TagData>();
+		Map<String, TagData> coupledEndPicks = new HashMap<String, TagData>();
 		Map<String, TagData> classTags = new HashMap<String, TagData>();
 
 		for (Object obj : tagData) {
@@ -1607,14 +1651,37 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
 				if (old == null || tag.startTime > old.startTime) {
 					endPicks.put(tag.eventId, tag);
 				}
+
+			} else if (tag.isCoupledStart()) {
+				TagData old = coupledStartPicks.get(tag.eventId);
+				if (old == null || tag.startTime < old.startTime) {
+					coupledStartPicks.put(tag.eventId, tag);
+				}
+
+			} else if (tag.isCoupledEnd()) {
+				TagData old = coupledEndPicks.get(tag.eventId);
+				if (old == null || tag.startTime > old.startTime) {
+					coupledEndPicks.put(tag.eventId, tag);
+				}
 			}
 		}
 
-		for (String eventId : pPicks.keySet()) {
-			TagData p = pPicks.get(eventId);
+		drawPickedDurationBlocks(g2, pPicks, endPicks, classTags, false);
+		drawPickedDurationBlocks(g2, coupledStartPicks, coupledEndPicks, classTags, true);
+	}
+
+	private void drawPickedDurationBlocks(
+			Graphics2D g2,
+			Map<String, TagData> startPicks,
+			Map<String, TagData> endPicks,
+			Map<String, TagData> classTags,
+			boolean hatched) {
+
+		for (String eventId : startPicks.keySet()) {
+			TagData start = startPicks.get(eventId);
 			TagData end = endPicks.get(eventId);
 
-			if (p == null || end == null || end.startTime <= p.startTime) {
+			if (start == null || end == null || end.startTime <= start.startTime) {
 				continue;
 			}
 
@@ -1623,11 +1690,11 @@ private void drawPhaseLabel(Graphics2D g2, TagData tag) {
 			String classification =
 					classTag != null && classTag.classification != null
 							? classTag.classification
-							: p.classification;
+							: start.classification;
 
 			Color durationColor = TagMenu.getDurationColor(classification);
 
-			drawPickedDuration(g2, p.startTime, end.startTime, durationColor);
+			drawPickedDuration(g2, start.startTime, end.startTime, durationColor, hatched);
 		}
 	}
 

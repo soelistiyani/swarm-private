@@ -237,6 +237,18 @@ public class TagMenu extends JPopupMenu {
 
 		if (result == JFileChooser.APPROVE_OPTION) {
 			File file = chooser.getSelectedFile();
+			if (!isSwarmTaggerFile(file)) {
+				JOptionPane.showMessageDialog(
+						hvp,
+						"Please select a SwarmTagger file, not a catalog file.\n\n"
+						+ "Allowed files:\n"
+						+ "SwarmTagger_*.csv\n"
+						+ "SwarmTaggerCoupled_*.csv",
+						"Invalid SwarmTagger File",
+						JOptionPane.WARNING_MESSAGE);
+				return;
+			}
+
 			eventFileName = file.getAbsolutePath();
 			openedExistingFile = true;
 
@@ -356,6 +368,17 @@ public class TagMenu extends JPopupMenu {
 
 	private void ensureEventFileForTime(double j2kTime) {
 		ensureEventFileForTime(j2kTime, false);
+	}
+
+	private boolean isSwarmTaggerFile(File file) {
+		if (file == null || !file.isFile()) {
+			return false;
+		}
+
+		String name = file.getName();
+
+		return name.startsWith("SwarmTagger_") && name.toLowerCase().endsWith(".csv")
+				|| name.startsWith("SwarmTaggerCoupled_") && name.toLowerCase().endsWith(".csv");
 	}
 
 	private void ensureCoupledEventFileForTime(double j2kTime) {
@@ -581,6 +604,7 @@ public class TagMenu extends JPopupMenu {
         try {
             fr = new FileReader(eventFileName);
             BufferedReader br = new BufferedReader(fr);
+			boolean loadCoupled = isActiveCoupledTaggerFile();
 
             String line;
             while ((line = br.readLine()) != null && !line.equals("")) {
@@ -590,6 +614,14 @@ public class TagMenu extends JPopupMenu {
 
                 TagData tag = new TagData(line);
 //                hvp.getTagData().add(tag);
+
+					if (loadCoupled) {
+						if (!isCoupledPhase(tag.phase)) {
+							continue;
+						}
+					} else if (isCoupledPhase(tag.phase)) {
+						continue;
+					}
 
 					if (!containsTag(tag)) {
 						hvp.getTagData().add(tag);
@@ -1171,6 +1203,15 @@ public class TagMenu extends JPopupMenu {
 			return;
 		}
 
+		if (isNormalPickInProgress(eventId)) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Finish normal Phase Pick END before starting Coupled Event.",
+					"Normal Phase Pick In Progress",
+					JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
 		if (!isCoupledPickAllowed(eventId, phase)) {
 			return;
 		}
@@ -1269,6 +1310,35 @@ public class TagMenu extends JPopupMenu {
 		return false;
 	}
 
+	private boolean isNormalPickInProgress(String eventId) {
+		if (eventId == null || eventId.length() == 0) {
+			return false;
+		}
+
+		TagData p = findPhaseTag(eventId, "P");
+		TagData end = findPhaseTag(eventId, "END");
+
+		return p != null && end == null && !hasCoupledPick(eventId);
+	}
+
+	private boolean isCoupledPickInProgress(String eventId) {
+		if (eventId == null || eventId.length() == 0) {
+			return false;
+		}
+
+		TagData p1 = findPhaseTag(eventId, CP1);
+		TagData end = findPhaseTag(eventId, CEND);
+
+		return p1 != null && end == null;
+	}
+
+	private boolean hasCoupledPick(String eventId) {
+		return findPhaseTag(eventId, CP1) != null
+				|| findPhaseTag(eventId, CP2) != null
+				|| findPhaseTag(eventId, CP3) != null
+				|| findPhaseTag(eventId, CEND) != null;
+	}
+
 	private void showMissingCoupledPick(String required, String phase) {
 		JOptionPane.showMessageDialog(
 				hvp,
@@ -1363,6 +1433,15 @@ public class TagMenu extends JPopupMenu {
 					hvp,
 					"Please select Event Classification first.",
 					"No Active Event",
+					JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
+		if (isCoupledPickInProgress(eventId)) {
+			JOptionPane.showMessageDialog(
+					hvp,
+					"Finish Coupled Event END before starting normal Phase Pick.",
+					"Coupled Event In Progress",
 					JOptionPane.WARNING_MESSAGE);
 			return;
 		}

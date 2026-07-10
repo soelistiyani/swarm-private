@@ -2,6 +2,8 @@
 
 `Tools -> Seismicity Statistics` summarizes catalog rows by classification and note.
 
+The date selector supports years `2000` through `2035`.
+
 ## Normal Events
 
 Normal event statistics use the standard catalog fields:
@@ -10,6 +12,8 @@ Normal event statistics use the standard catalog fields:
 - station,
 - channel,
 - classification,
+- note,
+- structured observations `mmi`, `audible`, and `visible`,
 - amplitude,
 - duration.
 

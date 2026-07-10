@@ -282,6 +282,14 @@ public class TagData implements Comparator<TagData> {
 				|| "CODA".equalsIgnoreCase(phase);
 	}
 
+	public boolean isCoupledStart() {
+		return "CP1".equalsIgnoreCase(phase);
+	}
+
+	public boolean isCoupledEnd() {
+		return "CEND".equalsIgnoreCase(phase);
+	}
+
 	public String getPhaseLabel() {
 
 		if (!isPhasePick()) {
@@ -321,7 +329,7 @@ public class TagData implements Comparator<TagData> {
 		}
 
 		if ("CEND".equalsIgnoreCase(phase)) {
-			return "END";
+			return "C-END";
 		}
 
 		if (isCoda()) {

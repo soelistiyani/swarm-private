@@ -17,6 +17,16 @@ Swarm_EventCatalog_YYYYMMDD_ALL.csv
 station/Swarm_EventCatalog_YYYYMMDD_STATION.csv
 ```
 
+Normal catalogs include structured observation columns after `note`:
+
+| Column | Meaning |
+| --- | --- |
+| `mmi` | Felt intensity as roman numerals `I` through `XII`. |
+| `audible` | Audible intensity: `Soft`, `Moderate`, or `Loud`. |
+| `visible` | Free visible-observation text. |
+
+If an observation was not entered, its column is empty.
+
 ## Coupled Catalog Files
 
 If coupled tagger files exist for a day, rebuild also writes:

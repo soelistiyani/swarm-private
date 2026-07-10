@@ -32,6 +32,8 @@ Example:
 SwarmTaggerCoupled_20260710_PPKB_HHZ_VG_00_ASUS.csv
 ```
 
+The tag menu's `Open existing swarmtagger file` action accepts normal and coupled SwarmTagger input files only. Catalog output files such as `Swarm_EventCatalog_*.csv` and `Swarm_CoupledEventCatalog_*.csv` are not valid input files for this action.
+
 ## Normal Catalog Files
 
 ```text

@@ -50,6 +50,7 @@ PVMBG-oriented additions in this fork:
 - Optional classification flags such as `skipMdFrequency` and `allowLongDuration`.
 - Separate coupled-event picking workflow with `P1`, `P2`, optional `P3`, and `END`.
 - Separate coupled-event tagger and catalog files.
+- Distinct coupled-event helicorder display using hatched duration blocks and `C-END` labels.
 - Seismicity Statistics support for normal and coupled event catalog rows.
 
 ## Build and Run
@@ -155,6 +156,8 @@ Normal event flow:
 
 For normal events, the `END` pick carries duration, amplitude, and frequency fields when those calculations are enabled for the classification.
 
+Normal and coupled pick sequences are mutually exclusive while an event is in progress. After a normal `P` pick, finish normal `END` before starting `Coupled Event`. After coupled `P1`, finish coupled `END` before starting normal phase picks.
+
 ### Observations and Notes
 
 The tag menu includes an `Observation` submenu before `Add/Edit Note`. Observations are structured fields saved with the event and written to the normal catalog:
@@ -184,8 +187,10 @@ Rules:
 - `P3` requires `P2` and is optional.
 - `END` requires `P2`; if `P3` exists, `END` must be after `P3`.
 - `END` marks the end of the whole coupled event.
+- Coupled `END` is displayed as `C-END` on the helicorder.
 - The note is automatically set to `Coupled Events`.
 - Deleting a coupled event removes the classification tag and all coupled picks for that `eventId`.
+- Coupled duration windows use the same classification color as normal events, with diagonal hatching to distinguish them.
 
 Coupled tagger files are separate from normal tagger files:
 
@@ -200,6 +205,8 @@ SwarmTaggerCoupled_20260710_PPKB_HHZ_VG_00_ASUS.csv
 ```
 
 Internally, coupled phases are stored separately from normal `P/S/END` picks so they do not enter the normal catalog by accident.
+
+When reviewing historical files, `Open existing swarmtagger file` accepts only `SwarmTagger_*.csv` and `SwarmTaggerCoupled_*.csv`. Catalog files such as `Swarm_EventCatalog_*.csv` are rejected. Opening a normal tagger file and then a coupled tagger file keeps both sets of tags visible together.
 
 ## Catalogs
 
@@ -248,6 +255,8 @@ Coupled events are not written into the normal event catalog.
 ## Seismicity Statistics
 
 `Tools -> Seismicity Statistics` reads catalog CSV files and summarizes events by classification and note.
+
+The date selector supports years `2000` through `2035`.
 
 For normal catalog rows, statistics use the normal catalog amplitude and duration fields.
 

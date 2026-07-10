@@ -127,7 +127,7 @@ public class SeismicityStatisticsDialog extends JDialog {
 		endHourBox = new JComboBox<String>();
 		endMinuteBox = new JComboBox<String>();
 
-		for (int y = 2020; y <= 2035; y++) {
+		for (int y = 2000; y <= 2035; y++) {
 			startYearBox.addItem(String.valueOf(y));
 			endYearBox.addItem(String.valueOf(y));
 		}

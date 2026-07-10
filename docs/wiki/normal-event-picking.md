@@ -16,6 +16,8 @@ Required sequence:
 Classification -> P -> optional S -> END
 ```
 
+Normal and coupled picks are mutually exclusive while an event is in progress. After picking normal `P`, finish normal `END` before starting a `Coupled Event` pick for the same event.
+
 ## Calculated Fields
 
 When `END` is picked, Swarm stores:
@@ -26,6 +28,8 @@ When `END` is picked, Swarm stores:
 - peak-to-peak amplitude,
 - duration magnitude `Md`, unless skipped by classification flag,
 - dominant frequency and `f1/f2/f3`, unless skipped by classification flag.
+
+The helicorder shows a translucent duration block from `P` to `END` using the selected classification color.
 
 ## Re-picking
 

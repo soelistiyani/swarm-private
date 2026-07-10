@@ -25,7 +25,14 @@ P1 -> P2 -> P3 -> END
 - `END` requires `P2`.
 - If `P3` exists, `END` must be after `P3`.
 - `END` marks the end of the whole coupled event.
+- Coupled `END` is displayed as `C-END` on the helicorder.
+- After picking `P1`, finish coupled `END` before starting normal phase picks for the same event.
+- After picking normal `P`, finish normal `END` before starting coupled picks for the same event.
 - The note is automatically set to `Coupled Events`.
+
+## Display
+
+Coupled events use the same classification color as normal events, but the helicorder duration block from `P1` to `END` is drawn with diagonal hatching. This keeps classification color meaningful while visually separating coupled events from normal `P -> END` events.
 
 ## Measurements
 
@@ -49,3 +56,14 @@ For Seismicity Statistics, coupled events use:
 ## Deleting
 
 `Delete Coupled Event` removes the classification tag and all coupled picks for the event.
+
+## Reviewing Existing Files
+
+`Open existing swarmtagger file` accepts only SwarmTagger input files:
+
+```text
+SwarmTagger_*.csv
+SwarmTaggerCoupled_*.csv
+```
+
+Catalog output files such as `Swarm_EventCatalog_*.csv` are rejected. You can open a normal `SwarmTagger_*.csv` file and then open a `SwarmTaggerCoupled_*.csv` file; both normal and coupled tags remain visible together on the helicorder.
