@@ -751,7 +751,7 @@ public class TagMenu extends JPopupMenu {
 					"P",
 					"IMPULSIVE",
 					"UNKNOWN",
-					1);
+					0);
 
 		} else if ("S".equalsIgnoreCase(phase)) {
 
@@ -1038,10 +1038,9 @@ public class TagMenu extends JPopupMenu {
 		this.add(phaseMenu);
 
 		/*
-		 * P PHASE: tetap lengkap
-		 * onset: IMPULSIVE / EMERGENT
-		 * polarity: + / - / UNKNOWN
-		 * uncertainty: 1-4 ms
+		 * P PHASE: onset + polarity only.
+		 * Uncertainty remains available from the inset pick menu for hypocenter
+		 * calculation, but is not needed in the tagger event catalog.
 		 */
 		createPMenu(phaseMenu);
 
@@ -1138,46 +1137,19 @@ public class TagMenu extends JPopupMenu {
 
 			for (final String polarity : polarities) {
 
-				if ("UNKNOWN".equalsIgnoreCase(polarity)) {
+				JMenuItem polarityItem = new JMenuItem(polarity);
 
-					JMenuItem unknownItem = new JMenuItem("UNKNOWN");
-
-					unknownItem.addActionListener(new ActionListener() {
-						public void actionPerformed(ActionEvent e) {
-							createPhasePick(
-									"P",
-									onset,
-									"UNKNOWN",
-									0);
-						}
-					});
-
-					onsetMenu.add(unknownItem);
-
-				} else {
-
-					JMenu polarityMenu = new JMenu(polarity);
-					onsetMenu.add(polarityMenu);
-
-					for (int i = 1; i <= 4; i++) {
-
-						final int uncertaintyMs = i;
-						JMenuItem uncertaintyItem =
-								new JMenuItem(uncertaintyMs + " ms");
-
-						uncertaintyItem.addActionListener(new ActionListener() {
-							public void actionPerformed(ActionEvent e) {
-								createPhasePick(
-										"P",
-										onset,
-										polarity,
-										uncertaintyMs);
-							}
-						});
-
-						polarityMenu.add(uncertaintyItem);
+				polarityItem.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent e) {
+						createPhasePick(
+								"P",
+								onset,
+								polarity,
+								0);
 					}
-				}
+				});
+
+				onsetMenu.add(polarityItem);
 			}
 		}
 	}

@@ -13,6 +13,7 @@ This repository is a PVMBG-oriented fork of Swarm `3.2.1` with additional workfl
 - [Event Tagging](#event-tagging)
 - [Coupled Events](#coupled-events)
 - [Catalogs](#catalogs)
+- [GAD Hypocenter Calculation](#gad-hypocenter-calculation)
 - [Seismicity Statistics](#seismicity-statistics)
 - [Project Structure](#project-structure)
 - [Development Notes](#development-notes)
@@ -149,10 +150,12 @@ SwarmTagger_YYYYMMDD_STATION_OPERATOR.csv
 Normal event flow:
 
 1. Select an event classification.
-2. Pick `P`.
+2. Pick `P` with onset and polarity.
 3. Optionally pick `S`.
 4. Pick `END`.
 5. Swarm writes the event using a shared `eventId`.
+
+The SwarmTagger `P` phase menu records only onset (`IMPULSIVE` or `EMERGENT`) and polarity (`+`, `-`, or `UNKNOWN`). It does not ask for pick uncertainty because the event catalog does not require that value. Pick uncertainty remains available in the wave inset pick menu for hypocenter calculations.
 
 For normal events, the `END` pick carries duration, amplitude, and frequency fields when those calculations are enabled for the classification.
 
@@ -252,6 +255,40 @@ Coupled catalog rows include:
 
 Coupled events are not written into the normal event catalog.
 
+## GAD Hypocenter Calculation
+
+`Event Dialog -> GAD` runs the GAD executable from the selected GAD folder. The selected folder remains the GAD working directory, so `Arrival.dat`, result files, history files, and runtime outputs are written there.
+
+Required files in the selected GAD folder:
+
+```text
+velocity.dat
+station.dat
+summit.dat
+```
+
+GAD executable lookup is OS-specific. The recommended cross-platform folder layout is:
+
+```text
+GAD/
+  windows/GAD.exe
+  linux/GAD
+  macos/GAD
+  velocity.dat
+  station.dat
+  summit.dat
+```
+
+Fallback executable names are also supported:
+
+| OS | Candidate executables |
+| --- | --- |
+| Windows | `windows/GAD.exe`, `win/GAD.exe`, `GAD.exe`, `gad.exe` |
+| Linux | `linux/GAD`, `linux/gad`, `GAD`, `gad`, `GAD-linux`, `gad-linux` |
+| macOS | `macos/GAD`, `macos/gad`, `mac/GAD`, `mac/gad`, `GAD`, `gad`, `GAD-macos`, `gad-macos` |
+
+On Linux and macOS, Swarm attempts to mark the selected executable as runnable before launching it. If macOS blocks the executable, remove quarantine or approve it through macOS security settings outside Swarm.
+
 ## Seismicity Statistics
 
 `Tools -> Seismicity Statistics` reads catalog CSV files and summarizes events by classification and note.
@@ -284,7 +321,7 @@ The statistics table includes a `Note` column, so normal and coupled rows remain
 | `docs` | User and technical documentation. |
 | `layouts` | Example or saved layout resources. |
 | `mapdata` | Mapping resources. |
-| `GAD` | GAD-related runtime resources. |
+| `GAD` | GAD runtime folder containing input files and platform-specific executables. |
 
 ## Development Notes
 

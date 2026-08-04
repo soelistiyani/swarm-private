@@ -38,7 +38,7 @@ public class GadManager {
     String result) {
 
   gadDir = new File(folder);
-  gadExe = new File(gadDir, "GAD.exe");
+  gadExe = defaultGadExecutable(gadDir);
   arrivalFile = new File(gadDir, "Arrival.dat");
   arrivalHistoryFile = new File(gadDir, "Arrival_history.dat");
   velocityFile = new File(velocity);
@@ -595,6 +595,16 @@ public class GadManager {
 
 	private void validateGadFolder() throws IOException {
 
+	if (!gadDir.exists() || !gadDir.isDirectory()) {
+	  throw new IOException("Folder GAD tidak ditemukan: " + gadDir.getAbsolutePath());
+	}
+
+	gadExe = resolveGadExecutable(gadDir);
+
+	if (!gadExe.canExecute() && !gadExe.setExecutable(true)) {
+	  throw new IOException("GAD tidak dapat dijalankan: " + gadExe.getAbsolutePath());
+	}
+
 	if (!velocityFile.exists()) {
 	  throw new IOException("velocity.dat tidak ditemukan: " + velocityFile.getAbsolutePath());
 	}
@@ -606,6 +616,74 @@ public class GadManager {
 	if (!summitFile.exists()) {
 	  throw new IOException("summit.dat tidak ditemukan: " + summitFile.getAbsolutePath());
 	}
+	}
+
+	private File defaultGadExecutable(File folder) {
+
+	  if (isWindows()) {
+		return new File(folder, "GAD.exe");
+	  }
+
+	  return new File(folder, "GAD");
+	}
+
+	private File resolveGadExecutable(File folder) throws IOException {
+
+	  String[] candidates;
+
+	  if (isWindows()) {
+		candidates = new String[] {
+			"windows" + File.separator + "GAD.exe",
+			"win" + File.separator + "GAD.exe",
+			"GAD.exe",
+			"gad.exe"
+		};
+	  } else if (isMac()) {
+		candidates = new String[] {
+			"macos" + File.separator + "GAD",
+			"macos" + File.separator + "gad",
+			"mac" + File.separator + "GAD",
+			"mac" + File.separator + "gad",
+			"GAD",
+			"gad",
+			"GAD-macos",
+			"gad-macos"
+		};
+	  } else {
+		candidates = new String[] {
+			"linux" + File.separator + "GAD",
+			"linux" + File.separator + "gad",
+			"GAD",
+			"gad",
+			"GAD-linux",
+			"gad-linux"
+		};
+	  }
+
+	  for (int i = 0; i < candidates.length; i++) {
+		File exe = new File(folder, candidates[i]);
+
+		if (exe.exists() && exe.isFile()) {
+		  return exe;
+		}
+	  }
+
+	  throw new IOException(
+		  "Executable GAD untuk OS ini tidak ditemukan di folder: "
+		  + folder.getAbsolutePath());
+	}
+
+	private boolean isWindows() {
+	  return getOsName().indexOf("win") >= 0;
+	}
+
+	private boolean isMac() {
+	  String os = getOsName();
+	  return os.indexOf("mac") >= 0 || os.indexOf("darwin") >= 0;
+	}
+
+	private String getOsName() {
+	  return System.getProperty("os.name", "").toLowerCase(Locale.US);
 	}
 
 	private void writeArrivalDat(String eventId, long eventBaseTime) throws IOException {
