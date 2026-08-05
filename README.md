@@ -289,22 +289,6 @@ Fallback executable names are also supported:
 
 On Linux and macOS, Swarm attempts to mark the selected executable as runnable before launching it. If macOS blocks the executable, remove quarantine or approve it through macOS security settings outside Swarm.
 
-### GAD Output Time
-
-Successful GAD runs append hypocenter rows to:
-
-```text
-GAD/hypocenter.csv
-```
-
-The `time` column is written as a full UTC timestamp:
-
-```text
-yyyy-MM-dd HH:mm:ss.SSS
-```
-
-Swarm derives this value from the linked event base minute plus GAD's `T` seconds value. This avoids malformed partial times such as `21:40.3` or negative-second timestamps such as `2026-08-03 16:26:-10.999`. Existing malformed rows are not rewritten automatically; rerun GAD to append corrected rows.
-
 ## Seismicity Statistics
 
 `Tools -> Seismicity Statistics` reads catalog CSV files and summarizes events by classification and note.

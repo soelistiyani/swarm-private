@@ -543,8 +543,6 @@ public class GadManager {
 
 	if (result != null) {
 	  result.eventId = selectedEvent.eventId;
-	  result.originTime =
-		  formatOriginTime(selectedEvent.baseTime, result.t);
 	}
 
 	SummitReference summit = readSummitDat();
@@ -1007,44 +1005,19 @@ public class GadManager {
 
 		int year = 2000 + yy;
 
-		java.util.Calendar cal =
-			java.util.Calendar.getInstance(
-				TimeZone.getTimeZone("UTC"));
-
-		cal.clear();
-		cal.set(year, mm - 1, dd, hh, min, 0);
-		cal.add(
-			java.util.Calendar.MILLISECOND,
-			(int) Math.round(sec * 1000.0));
-
-		SimpleDateFormat fmt =
-			new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-
-		fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-		return fmt.format(cal.getTime());
+		return String.format(
+			Locale.US,
+			"%04d-%02d-%02d %02d:%02d:%06.3f",
+			year,
+			mm,
+			dd,
+			hh,
+			min,
+			sec
+		);
 	  }
 
 	  return "";
-	}
-
-	private String formatOriginTime(
-		long baseTime,
-		Double sec) {
-
-	  if (sec == null) {
-		return "";
-	  }
-
-	  long originTime =
-		  baseTime + Math.round(sec * 1000.0);
-
-	  SimpleDateFormat fmt =
-		  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-
-	  fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-	  return fmt.format(new Date(originTime));
 	}
 
 	private String readFile(File f) throws IOException {
