@@ -43,6 +43,7 @@ verify:jdk8:
 
 stages:
   - documentation
+  - test
 
 sync_wiki:
   stage: documentation
