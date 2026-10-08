@@ -1,5 +1,7 @@
 package gov.usgs.volcanoes.swarm.wave;
 
+import javax.swing.ImageIcon;
+
 import gov.usgs.volcanoes.core.configfile.ConfigFile;
 import gov.usgs.volcanoes.core.contrib.PngEncoder;
 import gov.usgs.volcanoes.core.contrib.PngEncoderB;
@@ -89,6 +91,22 @@ import org.slf4j.LoggerFactory;
  * @author Dan Cervelli
  */
 public class WaveClipboardFrame extends SwarmFrame {
+private static final ImageIcon REFRESH_ICON = createRefreshIcon();
+
+private static ImageIcon createRefreshIcon() {
+final java.awt.image.BufferedImage image =
+new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+final Graphics g = image.getGraphics();
+g.setColor(new Color(55, 102, 160));
+g.drawArc(3, 3, 10, 10, 35, 285);
+g.drawLine(11, 2, 14, 3);
+g.drawLine(11, 2, 12, 6);
+g.dispose();
+return new ImageIcon(image);
+}
+
+private JButton refreshButton;
+
 
   private static final Logger LOGGER = LoggerFactory.getLogger(WaveClipboardFrame.class);
   public static final long serialVersionUID = -1;
@@ -228,16 +246,33 @@ public class WaveClipboardFrame extends SwarmFrame {
     linkButton.setSelected(heliLinked);
     toolbar.add(linkButton);
 
-    syncButton = SwarmUtil.createToolBarButton(Icons.clock, "Synchronize times with selected wave",
+syncButton = SwarmUtil.createToolBarButton(Icons.clock, "Synchronize times with selected wave",
         new ActionListener() {
           public void actionPerformed(final ActionEvent e) {
             syncChannels();
           }
         });
     syncButton.setEnabled(false);
-    toolbar.add(syncButton);
+toolbar.add(syncButton);
 
-    sortButton = SwarmUtil.createToolBarButton(Icons.geosort,
+refreshButton = SwarmUtil.createToolBarButton(REFRESH_ICON, "Refresh clipboard trace (Ctrl-R)",
+
+new ActionListener() {
+
+public void actionPerformed(final ActionEvent e) {
+
+refreshClipboardTrace();
+
+}
+});
+
+refreshButton.setEnabled(false);
+
+toolbar.add(refreshButton);
+
+UiUtils.mapKeyStrokeToButton(this, "control R", "refreshClipboardTrace", refreshButton);
+
+sortButton = SwarmUtil.createToolBarButton(Icons.geosort,
         "Sort waves by nearest to selected wave", new ActionListener() {
           public void actionPerformed(final ActionEvent e) {
             sortChannelsByNearest();
@@ -480,7 +515,21 @@ public class WaveClipboardFrame extends SwarmFrame {
     });
   }
 
-  private void createListeners() {
+private void refreshClipboardTrace() {
+
+final WaveViewPanel selected = getSingleSelected();
+
+if (selected == null) {
+
+return;
+
+}
+
+repositionWaves(selected.getStartTime(), selected.getEndTime());
+
+}
+
+private void createListeners() {
     this.addInternalFrameListener(new InternalFrameAdapter() {
       @Override
       public void internalFrameActivated(final InternalFrameEvent e) {}
@@ -913,13 +962,15 @@ public class WaveClipboardFrame extends SwarmFrame {
     saveButton.setEnabled(!enable);
     sortButton.setEnabled(!enable);
     saveAllButton.setEnabled(!enable);
-    syncButton.setEnabled(!enable);
+syncButton.setEnabled(!enable);
+refreshButton.setEnabled(!enable);
     removeAllButton.setEnabled(!enable);
     saveAllButton.setEnabled(!enable);
 
     final boolean allowSingle = (selectedSet.size() == 1);
     sortButton.setEnabled(allowSingle);
-    syncButton.setEnabled(allowSingle);
+syncButton.setEnabled(allowSingle);
+refreshButton.setEnabled(allowSingle);
     saveButton.setEnabled(allowSingle);
 
     final boolean allowMulti = (selectedSet.size() > 0);

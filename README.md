@@ -355,3 +355,39 @@ Swarm is open source and public domain under CC0 1.0 Universal. See `LICENSE.md`
 Swarm was originally developed by Dan Cervelli and Peter Cervelli for the USGS Volcano Science Center. Later maintenance and enhancements were made by Tom Parker and Diana Norgaard, with contributions from Loren Antolik, Kevin Frechette, Anthony Lomax, Dave Ketchum, Chirag Patel, Ivan Henson, and others.
 
 DOI: <https://doi.org/10.5066/P93A9MWK>
+## Operational notes
+
+### Java memory settings
+
+For an operator workstation with 32 GB RAM, start Swarm with a larger Java heap so
+long-running sessions and many open traces have more room before garbage
+collection pressure builds up.
+
+Recommended default:
+
+```bat
+java -Xms512m -Xmx8g -XX:+UseG1GC -Duser.country=US -Duser.language=us -jar lib\Swarm.jar
+```
+
+For heavier operational use, increase the maximum heap to 12 GB:
+
+```bat
+java -Xms1g -Xmx12g -XX:+UseG1GC -Duser.country=US -Duser.language=us -jar lib\Swarm.jar
+```
+
+The repository also includes `swarm_console_8g.bat`, which applies the 8 GB
+setting. Prefer ASCII/ANSI or UTF-8 without BOM for Windows `.bat` launchers; if
+a launcher appears as unreadable Japanese/Chinese-looking text, it is likely an
+encoding mismatch and should be rewritten as plain text.
+
+### Refresh Clipboard Trace
+
+Wave Clipboard includes a **Refresh Clipboard Trace** toolbar button and `Ctrl-R`
+shortcut. Select one trace in the Wave Clipboard, then use Refresh Clipboard
+Trace to reload the clipboard traces using the selected trace's current time
+range.
+
+This is intended as a lightweight recovery action when a long-running Swarm
+session or a session with many open data windows stops updating the clipboard to
+match the selected Helicorder trace. Operators can refresh the clipboard without
+closing and reopening Swarm.
